@@ -30,7 +30,7 @@ greet :: [UI Element]
 greet =
     [ UI.h1  #+ [string "Minesweeper-o-Matic"]
     ]
--- Creates a button with a toggleable "X"
+
 mkButton :: String -> UI (Element, Element)
 mkButton title = do
     stateRef <- liftIO $ newIORef False
@@ -46,9 +46,12 @@ mkButton title = do
 
 mkButtons :: UI [Element]
 mkButtons = do
-    (b, v) <- mkButton ""
+    rows <- forM [1..10] $ \_ -> do
+        rowButtons <- forM [1..10] $ \_ -> do
+            (b, v) <- mkButton ""
+            return $ element v
+        UI.div # set UI.style [("display", "inline-flex")] #+ rowButtons
+    grid <- UI.div # set UI.style [("display", "flex"), ("flex-direction", "column")]
+        #+ map element rows
 
-    c <- UI.div # set UI.style [("display", "inline-flex"), ("gap", "10px")] #+ map element [v]
-    g <- UI.div # set UI.style [("display", "flex"), ("flex-direction", "column"), ("gap", "10px"), ("margin-top", "10px")]
-        #+ map element [c]
-    return [g]
+    return [grid]
