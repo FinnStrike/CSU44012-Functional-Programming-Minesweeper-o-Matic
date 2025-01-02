@@ -1,0 +1,51 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.37.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           Minesweeper-o-Matic
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/githubuser/Minesweeper-o-Matic#readme>
+author:         Fionn Murphy
+maintainer:     murphf15@tcd.ie
+copyright:      2024 Fionn Murphy
+license:        BSD-3-Clause
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
+
+library
+  other-modules:
+      Paths_Minesweeper_o_Matic
+  autogen-modules:
+      Paths_Minesweeper_o_Matic
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , mtl
+  default-language: Haskell2010
+
+executable Minesweeper-o-Matic-exe
+  main-is: main.hs
+  other-modules:
+      Paths_Minesweeper_o_Matic
+  autogen-modules:
+      Paths_Minesweeper_o_Matic
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      Minesweeper-o-Matic
+    , base >=4.7 && <5
+    , containers
+    , directory
+    , mtl
+    , parsec
+    , threepenny-gui
+  default-language: Haskell2010
