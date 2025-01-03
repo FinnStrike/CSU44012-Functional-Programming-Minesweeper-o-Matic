@@ -9,57 +9,6 @@ import Graphics.UI.Threepenny.Core hiding ((<|>))
 
 import Data.IORef
 
--- Create a new Button with corresponding Square
-mkButton :: IORef Square -> UI (Element, Element)
-mkButton squareRef = do
-    -- Create the Button Element and Style
-    button <- UI.button #. "button" # set UI.style [("width", "25px"), ("height", "25px")]
-    -- On Left Click we Reveal the Square
-    on UI.click button $ \_ -> do
-        currentSquare <- liftIO $ readIORef squareRef
-        let newSquare = case currentSquare of
-                Clear (Hidden cell)   -> Clear (Revealed cell)
-                _                     -> currentSquare
-        liftIO $ writeIORef squareRef newSquare
-        updateButton button newSquare 
-    -- On Right Click we Flag/Unflag the Square
-    on UI.contextmenu button $ \_ -> do
-        currentSquare <- liftIO $ readIORef squareRef
-        let newSquare = case currentSquare of
-                Clear (Hidden cell)   -> Flagged (Hidden cell)
-                Flagged (Hidden cell) -> Clear (Hidden cell)
-                _                     -> currentSquare
-        liftIO $ writeIORef squareRef newSquare
-        updateButton button newSquare
-    view   <- UI.div #+ [element button]
-    return (button, view)
-
--- Update the Button Text depending on State
-updateButton :: Element -> Square -> UI Element
-updateButton button square = do
-    let icon = case square of
-            Flagged _                  -> "X"
-            Clear (Revealed Mine)      -> "*"
-            Clear (Revealed (Empty n)) -> show n
-            _                          -> ""
-    element button # set UI.text icon
-
--- Create the Grid of Buttons
-mkButtons :: IORef [[Square]] -> UI [Element]
-mkButtons squaresRef = do
-    -- Create 10 Columns
-    rows <- forM [0..9] $ \i -> do
-        -- Create 10 Rows
-        rowButtons <- forM [0..9] $ \j -> do
-            squares <- liftIO $ readIORef squaresRef
-            squareRef <- liftIO $ newIORef (squares !! i !! j)
-            (b, v) <- mkButton squareRef
-            return $ element v
-        UI.div # set UI.style [("display", "inline-flex"), ("height", "25px")] #+ rowButtons
-    grid <- UI.div # set UI.style [("display", "flex"), ("flex-direction", "column")]
-        #+ map element rows
-    return [grid]
-
 -- Base Square Type
 data Cell
     = Mine
@@ -86,9 +35,13 @@ isMine (Clear (Hidden Mine))     = True
 isMine (Clear (Revealed Mine))   = True
 isMine _                         = False
 
+-- Check if a Square has no neighbouring Mines
+isEmpty :: Square -> Bool
+isEmpty (Clear (Revealed (Empty 0))) = True
+isEmpty _                            = False
+
 -- Reveal a Square
 reveal :: Square -> Square
-reveal (Flagged (Hidden cell)) = Clear (Revealed cell)
 reveal (Clear (Hidden cell))   = Clear (Revealed cell)
 reveal square                   = square
 
@@ -144,7 +97,7 @@ placeMines size positions =
      | y <- [0..size-1]] 
      | x <- [0..size-1]]
 
--- Calculate the Value of each Square
+-- Calculate the Value of each Square (i.e. number of neighbouring mines)
 calcNeighbours :: [[Square]] -> [[Square]]
 calcNeighbours grid = 
     [[ if isMine (grid !! x !! y)
@@ -163,3 +116,91 @@ calcNeighbours grid =
                          isMine (g !! nx !! ny)]
         updateSquare (Clear (Hidden (Empty _))) n = Clear (Hidden (Empty n))
         updateSquare square _                     = square
+
+-- Reveal Neighbours of a Revealed Empty Square
+revealNeighbours :: IORef [[Square]] -> Int -> Int -> UI ()
+revealNeighbours squaresRef x y = do
+    squares <- liftIO $ readIORef squaresRef
+    let square = squares !! x !! y
+    -- If Square is Revealed and Empty, Reveal Neighbours
+    when (isEmpty (reveal square)) $ do
+        forM_ [(-1)..1] $ \dx -> do
+            forM_ [(-1)..1] $ \dy -> do
+                let nx = x + dx
+                let ny = y + dy
+                -- Ensure neighbour is in bounds
+                when (nx >= 0 && ny >= 0 && nx < length squares && ny < length (head squares)) $ do
+                    let neighbour = squares !! nx !! ny
+                    -- Reveal the square if not already revealed
+                    unless (isRevealed neighbour) $ do
+                        let newNeighbour = reveal neighbour
+                        liftIO $ updateSquareInGrid squaresRef nx ny newNeighbour
+                        (button, _) <- mkButton squaresRef nx ny
+                        updateButton button newNeighbour
+                        -- Recursively reveal neighbours if the neighbour is empty
+                        when (isEmpty newNeighbour) $ revealNeighbours squaresRef nx ny
+
+-- Helper function to update a square in the grid
+updateSquareInGrid :: IORef [[Square]] -> Int -> Int -> Square -> IO ()
+updateSquareInGrid squaresRef x y newSquare = do
+    squares <- liftIO $ readIORef squaresRef
+    let updatedRow = take y (squares !! x) ++ [newSquare] ++ drop (y + 1) (squares !! x)
+    let updatedGrid = take x squares ++ [updatedRow] ++ drop (x + 1) squares
+    liftIO $ writeIORef squaresRef updatedGrid
+
+-- Create a new Button with corresponding Square
+mkButton :: IORef [[Square]] -> Int -> Int -> UI (Element, Element)
+mkButton squaresRef i j = do
+    -- Create the Button Element and Style
+    button <- UI.button #. "button" # set UI.style [("width", "25px"), ("height", "25px")]
+    
+    -- On Left Click we Reveal the Square
+    on UI.click button $ \_ -> do
+        squares <- liftIO $ readIORef squaresRef
+        let square = squares !! i !! j
+        let newSquare = reveal square
+        liftIO $ updateSquareInGrid squaresRef i j newSquare
+        updateButton button newSquare
+        when (isEmpty newSquare) $ revealNeighbours squaresRef i j
+
+    -- On Mouseover we Update the Square
+    on UI.mousemove button $ \_ -> do
+        squares <- liftIO $ readIORef squaresRef
+        let square = squares !! i !! j
+        updateButton button square
+    
+    -- On Right Click we Flag/Unflag the Square
+    on UI.contextmenu button $ \_ -> do
+        squares <- liftIO $ readIORef squaresRef
+        let square = squares !! i !! j
+        let newSquare = flag square
+        liftIO $ updateSquareInGrid squaresRef i j newSquare
+        updateButton button newSquare
+    
+    view   <- UI.div #+ [element button]
+    return (button, view)
+
+-- Update the Button Text depending on State
+updateButton :: Element -> Square -> UI Element
+updateButton button square = do
+    let icon = case square of
+            Flagged _                  -> "X"
+            Clear (Revealed Mine)      -> "*"
+            Clear (Revealed (Empty n)) -> show n
+            _                          -> ""
+    element button # set UI.text icon
+
+-- Create the Grid of Buttons
+mkButtons :: IORef [[Square]] -> UI [Element]
+mkButtons squaresRef = do
+    -- Create 10 Columns
+    rows <- forM [0..9] $ \i -> do
+        -- Create 10 Rows
+        rowButtons <- forM [0..9] $ \j -> do
+            squares <- liftIO $ readIORef squaresRef
+            (_, v) <- mkButton squaresRef i j
+            return $ element v
+        UI.div # set UI.style [("display", "inline-flex"), ("height", "25px")] #+ rowButtons
+    grid <- UI.div # set UI.style [("display", "flex"), ("flex-direction", "column")]
+        #+ map element rows
+    return [grid]
