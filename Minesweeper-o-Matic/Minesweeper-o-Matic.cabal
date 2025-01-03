@@ -46,6 +46,6 @@ executable Minesweeper-o-Matic-exe
     , containers
     , directory
     , mtl
-    , parsec
+    , random
     , threepenny-gui
   default-language: Haskell2010

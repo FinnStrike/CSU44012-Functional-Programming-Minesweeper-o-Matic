@@ -51,4 +51,4 @@ executables:
     - containers
     - threepenny-gui
     - directory
-    - parsec
+    - random

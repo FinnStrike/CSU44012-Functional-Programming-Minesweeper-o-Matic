@@ -2,6 +2,8 @@ import Control.Monad
 import Control.Concurrent (threadDelay)
 
 import System.Directory
+import System.Random
+import Data.List (nub)
 
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Core hiding ((<|>))
@@ -21,7 +23,7 @@ setup w = void $ do
     -- Prevent Default Context Menu from showing on Right Click
     runFunction $ ffi "document.addEventListener('contextmenu', function(e) { e.preventDefault(); })"
     -- Create Grid of Buttons
-    squaresRef <- liftIO $ newIORef createGrid
+    squaresRef <- liftIO $ newIORef =<< createGrid
     buttons <- mkButtons squaresRef
     -- Display Grid
     getBody w #+ [UI.div #. "wrap" #+ (greet ++ map element buttons)]
@@ -77,7 +79,7 @@ mkButtons squaresRef = do
             squareRef <- liftIO $ newIORef (squares !! i !! j)
             (b, v) <- mkButton squareRef
             return $ element v
-        UI.div # set UI.style [("display", "inline-flex")] #+ rowButtons
+        UI.div # set UI.style [("display", "inline-flex"), ("height", "25px")] #+ rowButtons
     grid <- UI.div # set UI.style [("display", "flex"), ("flex-direction", "column")]
         #+ map element rows
     return [grid]
@@ -131,6 +133,37 @@ isFlagged :: Square -> Bool
 isFlagged (Flagged _) = True
 isFlagged _           = False
 
--- Create a 10x10 Grid of Squares
-createGrid :: [[Square]]
-createGrid = replicate 10 (replicate 10 (Clear (Hidden (Empty 0))))
+-- Create a Random 10x10 Grid of Squares with 15 Mines
+createGrid :: IO [[Square]]
+createGrid = do
+    -- Generate 15 Random Mine Positions
+    let size = 10
+        count = 15
+    positions <- generateMines size count
+    -- Initialize Grid with Mines
+    let initialGrid = placeMines size positions
+    return $ initialGrid
+
+-- Generate Random Mine Positions
+generateMines :: Int -> Int -> IO [(Int, Int)]
+generateMines size count = do
+    let indices = [(x, y) | x <- [0..size-1], y <- [0..size-1]]
+    selected <- shuffle indices
+    return $ take count selected
+
+-- Shuffle a list of coordinates
+shuffle :: [a] -> IO [a]
+shuffle [] = return []
+shuffle xs = do
+    i <- randomRIO (0, length xs - 1)
+    rest <- shuffle (take i xs ++ drop (i+1) xs)
+    return $ xs !! i : rest
+
+-- Place the Mines into the Grid
+placeMines :: Int -> [(Int, Int)] -> [[Square]]
+placeMines size positions = 
+    [[ if (x, y) `elem` positions
+        then Clear (Hidden Mine)
+        else Clear (Hidden (Empty 0))
+     | y <- [0..size-1]] 
+     | x <- [0..size-1]]
