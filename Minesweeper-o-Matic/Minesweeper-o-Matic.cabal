@@ -34,9 +34,7 @@ library
 executable Minesweeper-o-Matic-exe
   main-is: main.hs
   other-modules:
-      Paths_Minesweeper_o_Matic
-  autogen-modules:
-      Paths_Minesweeper_o_Matic
+      Minesweeper
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
