@@ -9,6 +9,20 @@ import Graphics.UI.Threepenny.Core hiding ((<|>))
 
 import Data.IORef
 
+-- Some CSS Styles
+hiddenStyle   = [("width", "25px"), ("height", "25px"),
+                 ("border-left", "3px solid white"),
+                 ("border-top", "3px solid white"),
+                 ("border-right", "3px solid #999999"),
+                 ("border-bottom", "3px solid #999999"), ("outline", "none"),
+                 ("background-color", "lightgrey"), ("font-weight", "bold")]
+revealedStyle = [("width", "25px"), ("height", "25px"),
+                 ("border", "1px solid #555555"), ("outline", "none"),
+                 ("background-color", "grey"), ("font-weight", "bold")]
+mineStyle     = [("width", "25px"), ("height", "25px"),
+                 ("border-color", "darkred"), ("border-width", "medium"),
+                 ("background-color", "red"), ("font-weight", "bold")]
+
 -- Base Square Type
 data Cell
     = Mine
@@ -152,7 +166,7 @@ updateSquareInGrid squaresRef x y newSquare = do
 mkButton :: IORef [[Square]] -> Int -> Int -> UI (Element, Element)
 mkButton squaresRef i j = do
     -- Create the Button Element and Style
-    button <- UI.button #. "button" # set UI.style [("width", "25px"), ("height", "25px")]
+    button <- UI.button #. "button" # set UI.style hiddenStyle
     
     -- On Left Click we Reveal the Square
     on UI.click button $ \_ -> do
@@ -183,12 +197,22 @@ mkButton squaresRef i j = do
 -- Update the Button Text depending on State
 updateButton :: Element -> Square -> UI Element
 updateButton button square = do
-    let icon = case square of
-            Flagged _                  -> "X"
-            Clear (Revealed Mine)      -> "*"
-            Clear (Revealed (Empty n)) -> show n
-            _                          -> ""
-    element button # set UI.text icon
+    let (icon, style) = case square of
+            Flagged _                  -> ("X", hiddenStyle)
+            Clear (Revealed Mine)      -> ("*", mineStyle)
+            Clear (Revealed (Empty 0)) -> ("", revealedStyle)
+            Clear (Revealed (Empty n)) -> (show n, revealedStyle)
+            _                          -> ("", hiddenStyle)
+    let colour = case square of
+            Flagged (Hidden _)         -> [("color", "red")]
+            Clear (Revealed Mine)      -> [("color", "black")]
+            Clear (Revealed (Empty 1)) -> [("color", "blue")]
+            Clear (Revealed (Empty 2)) -> [("color", "limegreen")]
+            Clear (Revealed (Empty 3)) -> [("color", "orangered")]
+            Clear (Revealed (Empty 4)) -> [("color", "darkviolet")]
+            Clear (Revealed (Empty 5)) -> [("color", "orange")]
+            _                          -> []
+    element button # set UI.text icon # set UI.style (style ++ colour)
 
 -- Create the Grid of Buttons
 mkButtons :: IORef [[Square]] -> UI [Element]
