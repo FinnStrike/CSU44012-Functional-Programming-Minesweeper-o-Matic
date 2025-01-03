@@ -142,7 +142,7 @@ createGrid = do
     positions <- generateMines size count
     -- Initialize Grid with Mines
     let initialGrid = placeMines size positions
-    return $ initialGrid
+    return $ calcNeighbours initialGrid
 
 -- Generate Random Mine Positions
 generateMines :: Int -> Int -> IO [(Int, Int)]
@@ -167,3 +167,23 @@ placeMines size positions =
         else Clear (Hidden (Empty 0))
      | y <- [0..size-1]] 
      | x <- [0..size-1]]
+
+-- Calculate the Value of each Square
+calcNeighbours :: [[Square]] -> [[Square]]
+calcNeighbours grid = 
+    [[ if isMine (grid !! x !! y)
+        then grid !! x !! y
+        else let neighbours = countAdj grid x y
+             in updateSquare (grid !! x !! y) neighbours
+     | y <- [0..length grid - 1]]
+     | x <- [0..length grid - 1]]
+    where 
+        countAdj g x y = 
+            length [() | dx <- [-1..1], dy <- [-1..1],
+                         let nx = x + dx, 
+                         let ny = y + dy,
+                         nx >= 0, nx < length g,
+                         ny >= 0, ny < length (head g),
+                         isMine (g !! nx !! ny)]
+        updateSquare (Clear (Hidden (Empty _))) n = Clear (Hidden (Empty n))
+        updateSquare square _                     = square
