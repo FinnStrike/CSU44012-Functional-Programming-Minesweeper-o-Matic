@@ -1,41 +1,27 @@
-module Minesweeper where
+module Minesweeper ( mkButtons, createGrid ) where
 
 import Control.Monad
 import Control.Concurrent (threadDelay)
 import System.Random
 
 import qualified Graphics.UI.Threepenny as UI
-import Graphics.UI.Threepenny.Core hiding ((<|>))
+import Graphics.UI.Threepenny.Core hiding ((<|>), grid, style)
 
 import Data.IORef
 
--- Some CSS Styles
-hiddenStyle   = [("width", "25px"), ("height", "25px"),
-                 ("border-left", "3px solid white"),
-                 ("border-top", "3px solid white"),
-                 ("border-right", "3px solid #999999"),
-                 ("border-bottom", "3px solid #999999"), ("outline", "none"),
-                 ("background-color", "lightgrey"), ("font-weight", "bold")]
-revealedStyle = [("width", "25px"), ("height", "25px"),
-                 ("border", "1px solid #555555"), ("outline", "none"),
-                 ("background-color", "grey"), ("font-weight", "bold")]
-mineStyle     = [("width", "25px"), ("height", "25px"),
-                 ("border-color", "darkred"), ("border-width", "medium"),
-                 ("background-color", "red"), ("font-weight", "bold")]
-
--- Base Square Type
+-- Base Square Type (Mine or Empty)
 data Cell
     = Mine
     | Empty Int
     deriving (Show, Eq)
 
--- State Square Type
+-- State Square Type (Revealed or Hidden)
 data State
     = Hidden Cell
     | Revealed Cell
     deriving (Show, Eq)
 
--- Full Square Type
+-- Full Square Type (Flagged or Unflagged)
 data Square
     = Flagged State
     | Clear State
@@ -57,7 +43,7 @@ isEmpty _                            = False
 -- Reveal a Square
 reveal :: Square -> Square
 reveal (Clear (Hidden cell))   = Clear (Revealed cell)
-reveal square                   = square
+reveal square                  = square
 
 -- Check if a Square is Revealed
 isRevealed :: Square -> Bool
@@ -69,12 +55,7 @@ isRevealed _                      = False
 flag :: Square -> Square
 flag (Flagged (Hidden cell)) = Clear (Hidden cell)
 flag (Clear (Hidden cell))   = Flagged (Hidden cell)
-flag square                   = square
-
--- Check if a Square is Flagged
-isFlagged :: Square -> Bool
-isFlagged (Flagged _) = True
-isFlagged _           = False
+flag square                  = square
 
 -- Create a Random 10x10 Grid of Squares with 15 Mines
 createGrid :: IO [[Square]]
@@ -150,7 +131,7 @@ revealNeighbours squaresRef x y = do
                         let newNeighbour = reveal neighbour
                         liftIO $ updateSquareInGrid squaresRef nx ny newNeighbour
                         (button, _) <- mkButton squaresRef nx ny
-                        updateButton button newNeighbour
+                        _ <- updateButton button newNeighbour
                         -- Recursively reveal neighbours if the neighbour is empty
                         when (isEmpty newNeighbour) $ revealNeighbours squaresRef nx ny
 
@@ -174,7 +155,7 @@ mkButton squaresRef i j = do
         let square = squares !! i !! j
         let newSquare = reveal square
         liftIO $ updateSquareInGrid squaresRef i j newSquare
-        updateButton button newSquare
+        _ <- updateButton button newSquare
         when (isEmpty newSquare) $ revealNeighbours squaresRef i j
 
     -- On Mouseover we Update the Square
@@ -199,7 +180,7 @@ updateButton :: Element -> Square -> UI Element
 updateButton button square = do
     let (icon, style) = case square of
             Flagged _                  -> ("X", hiddenStyle)
-            Clear (Revealed Mine)      -> ("*", mineStyle)
+            Clear (Revealed Mine)      -> ("☀︎", mineStyle)
             Clear (Revealed (Empty 0)) -> ("", revealedStyle)
             Clear (Revealed (Empty n)) -> (show n, revealedStyle)
             _                          -> ("", hiddenStyle)
@@ -209,7 +190,7 @@ updateButton button square = do
             Clear (Revealed (Empty 1)) -> [("color", "blue")]
             Clear (Revealed (Empty 2)) -> [("color", "limegreen")]
             Clear (Revealed (Empty 3)) -> [("color", "orangered")]
-            Clear (Revealed (Empty 4)) -> [("color", "darkviolet")]
+            Clear (Revealed (Empty 4)) -> [("color", "#8f00cb")]
             Clear (Revealed (Empty 5)) -> [("color", "orange")]
             _                          -> []
     element button # set UI.text icon # set UI.style (style ++ colour)
@@ -221,10 +202,38 @@ mkButtons squaresRef = do
     rows <- forM [0..9] $ \i -> do
         -- Create 10 Rows
         rowButtons <- forM [0..9] $ \j -> do
-            squares <- liftIO $ readIORef squaresRef
             (_, v) <- mkButton squaresRef i j
             return $ element v
-        UI.div # set UI.style [("display", "inline-flex"), ("height", "25px")] #+ rowButtons
-    grid <- UI.div # set UI.style [("display", "flex"), ("flex-direction", "column")]
+        UI.div # set UI.style rowStyle #+ rowButtons
+    grid <- UI.div # set UI.style gridStyle
         #+ map element rows
     return [grid]
+
+-- CSS Styles
+hiddenStyle :: [(String, String)]
+hiddenStyle   = [("width", "25px"), ("height", "25px"),
+                 ("border-left", "3px solid white"),
+                 ("border-top", "3px solid white"),
+                 ("border-right", "3px solid #999999"),
+                 ("border-bottom", "3px solid #999999"), ("outline", "none"),
+                 ("background-color", "lightgrey"), ("font-weight", "bold")]
+
+revealedStyle :: [(String, String)]
+revealedStyle = [("width", "25px"), ("height", "25px"),
+                 ("border", "1px solid #555555"), ("outline", "none"),
+                 ("background-color", "grey"), ("font-weight", "bold")]
+
+mineStyle :: [(String, String)]
+mineStyle     = [("width", "25px"), ("height", "25px"),
+                 ("border-color", "darkred"), ("border-width", "medium"),
+                 ("background-color", "red"), ("font-weight", "bold"), ("font-size", "x-small")]
+
+rowStyle :: [(String, String)]
+rowStyle      = [("display", "inline-flex"), ("height", "25px"), ("width", "250px")]
+
+gridStyle :: [(String, String)]
+gridStyle     = [("display", "flex"), ("flex-direction", "column"), ("width", "250px"),
+                 ("border-left", "10px solid #555555"),
+                 ("border-top", "10px solid #555555"),
+                 ("border-right", "10px solid #222222"),
+                 ("border-bottom", "10px solid #222222")]
