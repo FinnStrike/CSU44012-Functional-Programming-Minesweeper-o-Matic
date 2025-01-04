@@ -1,4 +1,4 @@
-module Minesweeper ( mkButtons, createGrid ) where
+module Minesweeper where
 
 import Control.Monad
 import System.Random
@@ -7,6 +7,7 @@ import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Core hiding ((<|>), grid, style, row)
 
 import Data.IORef
+import Styles
 
 -- Base Square Type (Mine or Empty)
 data Cell
@@ -248,41 +249,3 @@ mkButtons squaresRef gameState message = do
     grid <- UI.div # set UI.style gridStyle
         #+ map element rows
     return [grid]
-
--- CSS Styles
-hiddenStyle :: [(String, String)]
-hiddenStyle   = [("width", "25px"), ("height", "25px"),
-                 ("border-left", "3px solid white"),
-                 ("border-top", "3px solid white"),
-                 ("border-right", "3px solid #999999"),
-                 ("border-bottom", "3px solid #999999"), ("outline", "none"),
-                 ("background-color", "lightgrey"), ("font-weight", "bold")]
-
-revealedStyle :: [(String, String)]
-revealedStyle = [("width", "25px"), ("height", "25px"),
-                 ("border", "1px solid #555555"), ("outline", "none"),
-                 ("background-color", "grey"), ("font-weight", "bold")]
-
-mineStyle :: [(String, String)]
-mineStyle     = [("width", "25px"), ("height", "25px"),
-                 ("border-color", "darkred"), ("border-width", "medium"),
-                 ("background-color", "red"), ("font-weight", "bold"), ("font-size", "x-small")]
-
-rowStyle :: [(String, String)]
-rowStyle      = [("display", "inline-flex"), ("height", "25px"), ("width", "250px")]
-
-gridStyle :: [(String, String)]
-gridStyle     = [("display", "flex"), ("flex-direction", "column"), ("width", "250px"),
-                 ("border-left", "10px solid #555555"),
-                 ("border-top", "10px solid #555555"),
-                 ("border-right", "10px solid #222222"),
-                 ("border-bottom", "10px solid #222222")]
-
-messageStyle :: [(String, String)]
-messageStyle  = [("font-size", "xx-large"), ("font-weight", "bold"),
-                 ("display", "flex"), ("justify-content", "center"), ("align-items", "center"),
-                 ("width", "250px"), ("height", "50px"), ("background-color", "#333333"),
-                 ("border-left", "10px solid #222222"),
-                 ("border-top", "10px solid #222222"),
-                 ("border-right", "10px solid black"),
-                 ("border-bottom", "10px solid black"), ("margin-top", "10px")]

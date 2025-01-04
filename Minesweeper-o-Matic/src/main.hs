@@ -8,6 +8,8 @@ import Graphics.UI.Threepenny.Core hiding ((<|>))
 
 import Data.IORef
 import Minesweeper
+import Player
+import Styles
 
 -- User Interface
 
@@ -23,17 +25,17 @@ setup w = void $ do
     runFunction $ ffi "document.addEventListener('contextmenu', function(e) { e.preventDefault(); })"
     -- Create Reset Button
     resetButton <- UI.button #+ [string "Reset"]
-    void $ element resetButton # set UI.style [("margin-left", "20px")]
+    void $ element resetButton # set UI.style resetStyle
     on UI.click resetButton $ \_ -> do
         void $ getBody w # set children []
         newGame <- createGame
-        newContainer <- UI.div # set UI.style [("display", "flex"), ("align-items", "flex-start")]
-            #+ [UI.div # set UI.style [("width", "300px")] #+ newGame, element resetButton]
+        newContainer <- UI.div # set UI.style containerStyle
+            #+ [UI.div # set UI.style gameStyle #+ newGame, element resetButton]
         getBody w #+ (greet ++ [return newContainer])
     -- Set up the Game
     game <- createGame
-    container <- UI.div # set UI.style [("display", "flex"), ("align-items", "flex-start")]
-        #+ [UI.div # set UI.style [("width", "300px")] #+ game, element resetButton]
+    container <- UI.div # set UI.style containerStyle
+        #+ [UI.div # set UI.style gameStyle #+ game, element resetButton]
     -- Display Grid
     getBody w #+ (greet ++ [return container])
 
@@ -47,7 +49,12 @@ createGame = do
     message <- UI.div #. "message" # set text ""
     -- Create Grid of Buttons
     buttons <- mkButtons squaresRef gameState message
-    return [UI.div #. "wrap" #+ (map element buttons ++ [element message])]
+    -- Create Play Move Button
+    playButton <- UI.button #+ [string "Play Move"]
+    void $ element playButton # set UI.style playStyle
+    on UI.click playButton $ \_ -> playMove squaresRef gameState message
+    -- Return Game
+    return [UI.div #. "wrap" #+ ([element playButton] ++ map element buttons ++ [element message])]
 
 greet :: [UI Element]
 greet =

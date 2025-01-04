@@ -41,7 +41,7 @@ executables:
   Minesweeper-o-Matic-exe:
     main:                main.hs
     source-dirs:         src
-    other-modules:       Minesweeper
+    other-modules:       Minesweeper, Player, Styles
     ghc-options:
     - -threaded
     - -rtsopts
