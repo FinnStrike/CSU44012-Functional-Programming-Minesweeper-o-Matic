@@ -172,7 +172,6 @@ mkButton squaresRef gameState message i j = do
             -- If Square was an Unflagged Mine then End the Game
             if isMine square && not (isFlagged square)
                 then do
-                    liftIO $ writeIORef gameState False
                     _ <- element message # set UI.style (messageStyle ++ [("color", "red")])
                     _ <- element message # set UI.text "Game Over."
                     liftIO $ writeIORef gameState False
@@ -181,7 +180,6 @@ mkButton squaresRef gameState message i j = do
                     newSquares <- liftIO $ readIORef squaresRef
                     if checkWin newSquares
                         then do
-                            liftIO $ writeIORef gameState False
                             _ <- element message # set UI.style (messageStyle ++ [("color", "yellow")])
                             _ <- element message # set UI.text "Congratulations!"
                             liftIO $ writeIORef gameState False
@@ -209,6 +207,7 @@ mkButton squaresRef gameState message i j = do
             liftIO $ updateSquareInGrid squaresRef i j newSquare
             updateButton button newSquare
     
+    -- Return button with view
     view   <- UI.div #+ [element button]
     return (button, view)
 
@@ -229,6 +228,9 @@ updateButton button square = do
             Clear (Revealed (Empty 3)) -> [("color", "orangered")]
             Clear (Revealed (Empty 4)) -> [("color", "#8f00cb")]
             Clear (Revealed (Empty 5)) -> [("color", "orange")]
+            Clear (Revealed (Empty 6)) -> [("color", "aqua")]
+            Clear (Revealed (Empty 7)) -> [("color", "darkslategrey")]
+            Clear (Revealed (Empty 8)) -> [("color", "black")]
             _                          -> []
     _ <- element button # set UI.text icon # set UI.style (style ++ colour)
     return ()
