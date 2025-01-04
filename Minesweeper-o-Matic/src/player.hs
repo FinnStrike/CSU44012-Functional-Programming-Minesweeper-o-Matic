@@ -15,8 +15,8 @@ playMove squaresRef gameState message = do
     squares <- liftIO $ readIORef squaresRef
     active <- liftIO $ readIORef gameState
     when active $ do
-        -- Attempt to find a safe move
-        case findSafeMove squares of
+        -- Attempt to find a safe reveal move
+        case findSafeReveal squares of
             Just (x, y) -> do
                 -- Reveal the safe square
                 let square = squares !! x !! y
@@ -28,12 +28,25 @@ playMove squaresRef gameState message = do
                 -- Log the move
                 liftIO $ putStrLn $ "Revealed square at (" ++ show x ++ ", " ++ show y ++ ")."
             Nothing -> do
-                -- Log no safe moves
-                liftIO $ putStrLn "No safe moves available."
+                -- Attemp to find a flag move
+                case findFlagMove squares of
+                    Just (x, y) -> do
+                        -- Flag the mine
+                        let square = squares !! x !! y
+                        let newSquare = flag square
+                        liftIO $ updateSquareInGrid squaresRef x y newSquare
+                        (button, _) <- mkButton squaresRef gameState message x y
+                        updateButton button newSquare
+                        -- Log the move
+                        liftIO $ putStrLn $ "Flagged square at (" ++ show x ++ ", " ++ show y ++ ")."
+                    Nothing -> do
+                        -- Log that no move was found
+                        liftIO $ putStrLn "No safe moves available."
+                        return ()
 
 -- Attempt to find an unambiguously safe move
-findSafeMove :: [[Square]] -> Maybe (Int, Int)
-findSafeMove squares = 
+findSafeReveal :: [[Square]] -> Maybe (Int, Int)
+findSafeReveal squares = 
     let size = length squares
         coords = [(x, y) | x <- [0..size-1], y <- [0..size-1]]
         safeMoves = [ (nx, ny)
@@ -47,6 +60,24 @@ findSafeMove squares =
                     , not (null hiddenNeighbours)
                     , let (nx, ny) = head hiddenNeighbours ]
     in listToMaybe safeMoves
+
+-- Attempt to find a mine that can be flagged
+findFlagMove :: [[Square]] -> Maybe (Int, Int)
+findFlagMove squares = 
+    let size = length squares
+        coords = [(x, y) | x <- [0..size-1], y <- [0..size-1]]
+        flagMoves = [ (nx, ny)
+                    | (x, y) <- coords
+                    , let square = squares !! x !! y
+                    , isRevealed square
+                    , let neighbours = getNeighbours squares x y
+                    , let flaggedCount = length $ filter isFlagged neighbours
+                    , let clearHiddenNeighbours = [(nx, ny) | (nx, ny) <- neighbourCoords x y size, isClearAndHidden (squares !! nx !! ny)]
+                    , let clue = countMines square
+                    , length clearHiddenNeighbours == clue - flaggedCount
+                    , not (null clearHiddenNeighbours)
+                    , let (nx, ny) = head clearHiddenNeighbours ]
+    in listToMaybe flagMoves
 
 -- Attempt to find the least dangerous move available
 findLeastDangerousMove :: [[Square]] -> Maybe (Int, Int)
