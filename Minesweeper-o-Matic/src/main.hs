@@ -24,9 +24,10 @@ setup w = void $ do
     -- Create Grid of Buttons
     squaresRef <- liftIO $ newIORef =<< createGrid
     gameState <- liftIO $ newIORef True
-    buttons <- mkButtons squaresRef gameState
+    message <- UI.div #. "message" # set text ""
+    buttons <- mkButtons squaresRef gameState message
     -- Display Grid
-    getBody w #+ [UI.div #. "wrap" #+ (greet ++ map element buttons)]
+    getBody w #+ [UI.div #. "wrap" #+ (greet ++ map element buttons ++ [element message])]
 
 greet :: [UI Element]
 greet =

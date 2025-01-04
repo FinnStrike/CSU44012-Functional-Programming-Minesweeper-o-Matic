@@ -125,8 +125,8 @@ calcNeighbours grid =
         updateSquare square _                     = square
 
 -- Reveal Neighbours of a Revealed Empty Square
-revealNeighbours :: IORef [[Square]] -> IORef Bool -> Int -> Int -> UI ()
-revealNeighbours squaresRef gameState x y = do
+revealNeighbours :: IORef [[Square]] -> IORef Bool -> Element -> Int -> Int -> UI ()
+revealNeighbours squaresRef gameState message x y = do
     squares <- liftIO $ readIORef squaresRef
     forM_ [(-1)..1] $ \dx -> do
         forM_ [(-1)..1] $ \dy -> do
@@ -139,10 +139,10 @@ revealNeighbours squaresRef gameState x y = do
                 unless (isRevealed neighbour) $ do
                     let newNeighbour = reveal neighbour
                     liftIO $ updateSquareInGrid squaresRef nx ny newNeighbour
-                    (button, _) <- mkButton squaresRef gameState nx ny
+                    (button, _) <- mkButton squaresRef gameState message nx ny
                     updateButton button newNeighbour
                     -- Recursively reveal neighbours if the neighbour is empty
-                    when (isEmpty newNeighbour) $ revealNeighbours squaresRef gameState nx ny
+                    when (isEmpty newNeighbour) $ revealNeighbours squaresRef gameState message nx ny
 
 -- Helper function to update a square in the grid
 updateSquareInGrid :: IORef [[Square]] -> Int -> Int -> Square -> IO ()
@@ -153,8 +153,8 @@ updateSquareInGrid squaresRef x y newSquare = do
     liftIO $ writeIORef squaresRef updatedGrid
 
 -- Create a new Button with corresponding Square
-mkButton :: IORef [[Square]] -> IORef Bool -> Int -> Int -> UI (Element, Element)
-mkButton squaresRef gameState i j = do
+mkButton :: IORef [[Square]] -> IORef Bool -> Element -> Int -> Int -> UI (Element, Element)
+mkButton squaresRef gameState message i j = do
     -- Create the Button Element and Style
     button <- UI.button #. "button" # set UI.style hiddenStyle
     
@@ -173,17 +173,21 @@ mkButton squaresRef gameState i j = do
             if isMine square && not (isFlagged square)
                 then do
                     liftIO $ writeIORef gameState False
-                    runFunction $ ffi "console.log('Game Over.')"
+                    _ <- element message # set UI.style (messageStyle ++ [("color", "red")])
+                    _ <- element message # set UI.text "Game Over."
+                    liftIO $ writeIORef gameState False
                 else do
                     -- If all Empty Squares Revealed then End the Game
                     newSquares <- liftIO $ readIORef squaresRef
                     if checkWin newSquares
                         then do
                             liftIO $ writeIORef gameState False
-                            runFunction $ ffi "console.log('You Win!')"
+                            _ <- element message # set UI.style (messageStyle ++ [("color", "yellow")])
+                            _ <- element message # set UI.text "Congratulations!"
+                            liftIO $ writeIORef gameState False
                         else do
                             -- If Square was Empty then reveal all neighbours
-                            when (isEmpty newSquare) $ revealNeighbours squaresRef gameState i j
+                            when (isEmpty newSquare) $ revealNeighbours squaresRef gameState message i j
 
     -- On Mouseover we Update the Square
     on UI.mousemove button $ \_ -> do
@@ -230,13 +234,13 @@ updateButton button square = do
     return ()
 
 -- Create the Grid of Buttons
-mkButtons :: IORef [[Square]] -> IORef Bool -> UI [Element]
-mkButtons squaresRef gameState = do
+mkButtons :: IORef [[Square]] -> IORef Bool -> Element -> UI [Element]
+mkButtons squaresRef gameState message = do
     -- Create 10 Columns
     rows <- forM [0..9] $ \i -> do
         -- Create 10 Rows
         rowButtons <- forM [0..9] $ \j -> do
-            (_, v) <- mkButton squaresRef gameState i j
+            (_, v) <- mkButton squaresRef gameState message i j
             return $ element v
         UI.div # set UI.style rowStyle #+ rowButtons
     grid <- UI.div # set UI.style gridStyle
@@ -271,3 +275,12 @@ gridStyle     = [("display", "flex"), ("flex-direction", "column"), ("width", "2
                  ("border-top", "10px solid #555555"),
                  ("border-right", "10px solid #222222"),
                  ("border-bottom", "10px solid #222222")]
+
+messageStyle :: [(String, String)]
+messageStyle  = [("font-size", "xx-large"), ("font-weight", "bold"),
+                 ("display", "flex"), ("justify-content", "center"), ("align-items", "center"),
+                 ("width", "250px"), ("height", "50px"), ("background-color", "#333333"),
+                 ("border-left", "10px solid #222222"),
+                 ("border-top", "10px solid #222222"),
+                 ("border-right", "10px solid black"),
+                 ("border-bottom", "10px solid black"), ("margin-top", "10px")]
