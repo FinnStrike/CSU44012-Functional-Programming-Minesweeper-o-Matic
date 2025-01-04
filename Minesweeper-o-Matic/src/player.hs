@@ -2,7 +2,6 @@ module Player where
 
 import Control.Monad
 
-import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Core hiding ((<|>), grid, style, row)
 
 import Data.IORef
@@ -26,36 +25,27 @@ playMove squaresRef gameState message = do
                 (button, _) <- mkButton squaresRef gameState message x y
                 updateButton button newSquare
                 when (isEmpty newSquare) $ revealNeighbours squaresRef gameState message x y
+                -- Log the move
+                liftIO $ putStrLn $ "Revealed square at (" ++ show x ++ ", " ++ show y ++ ")."
             Nothing -> do
-                -- If no safe move is found, pick the least dangerous move
-                case findLeastDangerousMove squares of
-                    Just (x, y) -> do
-                        let square = squares !! x !! y
-                        let newSquare = reveal square
-                        liftIO $ updateSquareInGrid squaresRef x y newSquare
-                        (button, _) <- mkButton squaresRef gameState message x y
-                        updateButton button newSquare
-                        when (isEmpty newSquare) $ revealNeighbours squaresRef gameState message x y
-                    Nothing -> do
-                        -- If no moves are available, display a message
-                        _ <- element message # set UI.text "No moves available."
-                        return ()
+                -- Log no safe moves
+                liftIO $ putStrLn "No safe moves available."
 
 -- Attempt to find an unambiguously safe move
 findSafeMove :: [[Square]] -> Maybe (Int, Int)
 findSafeMove squares = 
     let size = length squares
         coords = [(x, y) | x <- [0..size-1], y <- [0..size-1]]
-        safeMoves = [ (x, y)
+        safeMoves = [ (nx, ny)
                     | (x, y) <- coords
                     , let square = squares !! x !! y
                     , isRevealed square
                     , let neighbours = getNeighbours squares x y
                     , let flaggedCount = length $ filter isFlagged neighbours
-                    , let hiddenCount = length $ filter (not . isRevealed) neighbours
                     , flaggedCount == countMines square
-                    , hiddenCount > 0
-                    , any (not . isRevealed) neighbours ]
+                    , let hiddenNeighbours = [(nx, ny) | (nx, ny) <- neighbourCoords x y size, isClearAndHidden (squares !! nx !! ny)]
+                    , not (null hiddenNeighbours)
+                    , let (nx, ny) = head hiddenNeighbours ]
     in listToMaybe safeMoves
 
 -- Attempt to find the least dangerous move available
@@ -83,12 +73,26 @@ calculateProbability squares x y =
         totalHidden = length $ filter (not . isRevealed) neighbours
     in if totalHidden == 0 then 1.0 else fromIntegral totalMines / fromIntegral totalHidden
 
+-- Check if a Square is Clear and Hidden
+isClearAndHidden :: Square -> Bool
+isClearAndHidden (Clear (Hidden _)) = True
+isClearAndHidden _ = False
+
 -- Get the neighbouring Squares of a given Square
 getNeighbours :: [[Square]] -> Int -> Int -> [Square]
 getNeighbours squares x y =
     [ squares !! nx !! ny
     | dx <- [-1..1], dy <- [-1..1], let nx = x + dx, let ny = y + dy
     , nx >= 0, ny >= 0, nx < length squares, ny < length (head squares)
+    , (dx, dy) /= (0, 0) ]
+
+-- Get the neighbouring coordinates of a given position
+neighbourCoords :: Int -> Int -> Int -> [(Int, Int)]
+neighbourCoords x y size =
+    [ (nx, ny)
+    | dx <- [-1..1], dy <- [-1..1]
+    , let nx = x + dx, let ny = y + dy
+    , nx >= 0, ny >= 0, nx < size, ny < size
     , (dx, dy) /= (0, 0) ]
 
 -- Get the number of neighbouring mines of a given Square
