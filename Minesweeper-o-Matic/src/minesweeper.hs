@@ -1,11 +1,10 @@
 module Minesweeper ( mkButtons, createGrid ) where
 
 import Control.Monad
-import Control.Concurrent (threadDelay)
 import System.Random
 
 import qualified Graphics.UI.Threepenny as UI
-import Graphics.UI.Threepenny.Core hiding ((<|>), grid, style)
+import Graphics.UI.Threepenny.Core hiding ((<|>), grid, style, row)
 
 import Data.IORef
 
@@ -57,6 +56,11 @@ flag (Flagged (Hidden cell)) = Clear (Hidden cell)
 flag (Clear (Hidden cell))   = Flagged (Hidden cell)
 flag square                  = square
 
+-- Check if a Square is Flagged
+isFlagged :: Square -> Bool
+isFlagged (Flagged _) = True
+isFlagged _           = False
+
 -- Create a Random 10x10 Grid of Squares with 15 Mines
 createGrid :: IO [[Square]]
 createGrid = do
@@ -92,6 +96,14 @@ placeMines size positions =
      | y <- [0..size-1]] 
      | x <- [0..size-1]]
 
+-- Check if all Empty Squares have been Revealed
+checkWin :: [[Square]] -> Bool
+checkWin squares =
+    let totalSquares = length squares * length (head squares)
+        mineCount = 15
+        revealedCount = length [() | row <- squares, Clear (Revealed _) <- row]
+    in revealedCount == totalSquares - mineCount
+
 -- Calculate the Value of each Square (i.e. number of neighbouring mines)
 calcNeighbours :: [[Square]] -> [[Square]]
 calcNeighbours grid = 
@@ -113,27 +125,24 @@ calcNeighbours grid =
         updateSquare square _                     = square
 
 -- Reveal Neighbours of a Revealed Empty Square
-revealNeighbours :: IORef [[Square]] -> Int -> Int -> UI ()
-revealNeighbours squaresRef x y = do
+revealNeighbours :: IORef [[Square]] -> IORef Bool -> Int -> Int -> UI ()
+revealNeighbours squaresRef gameState x y = do
     squares <- liftIO $ readIORef squaresRef
-    let square = squares !! x !! y
-    -- If Square is Revealed and Empty, Reveal Neighbours
-    when (isEmpty (reveal square)) $ do
-        forM_ [(-1)..1] $ \dx -> do
-            forM_ [(-1)..1] $ \dy -> do
-                let nx = x + dx
-                let ny = y + dy
-                -- Ensure neighbour is in bounds
-                when (nx >= 0 && ny >= 0 && nx < length squares && ny < length (head squares)) $ do
-                    let neighbour = squares !! nx !! ny
-                    -- Reveal the square if not already revealed
-                    unless (isRevealed neighbour) $ do
-                        let newNeighbour = reveal neighbour
-                        liftIO $ updateSquareInGrid squaresRef nx ny newNeighbour
-                        (button, _) <- mkButton squaresRef nx ny
-                        _ <- updateButton button newNeighbour
-                        -- Recursively reveal neighbours if the neighbour is empty
-                        when (isEmpty newNeighbour) $ revealNeighbours squaresRef nx ny
+    forM_ [(-1)..1] $ \dx -> do
+        forM_ [(-1)..1] $ \dy -> do
+            let nx = x + dx
+            let ny = y + dy
+            -- Ensure neighbour is in bounds
+            when (nx >= 0 && ny >= 0 && nx < length squares && ny < length (head squares)) $ do
+                let neighbour = squares !! nx !! ny
+                -- Reveal the square if not already revealed
+                unless (isRevealed neighbour) $ do
+                    let newNeighbour = reveal neighbour
+                    liftIO $ updateSquareInGrid squaresRef nx ny newNeighbour
+                    (button, _) <- mkButton squaresRef gameState nx ny
+                    updateButton button newNeighbour
+                    -- Recursively reveal neighbours if the neighbour is empty
+                    when (isEmpty newNeighbour) $ revealNeighbours squaresRef gameState nx ny
 
 -- Helper function to update a square in the grid
 updateSquareInGrid :: IORef [[Square]] -> Int -> Int -> Square -> IO ()
@@ -144,39 +153,63 @@ updateSquareInGrid squaresRef x y newSquare = do
     liftIO $ writeIORef squaresRef updatedGrid
 
 -- Create a new Button with corresponding Square
-mkButton :: IORef [[Square]] -> Int -> Int -> UI (Element, Element)
-mkButton squaresRef i j = do
+mkButton :: IORef [[Square]] -> IORef Bool -> Int -> Int -> UI (Element, Element)
+mkButton squaresRef gameState i j = do
     -- Create the Button Element and Style
     button <- UI.button #. "button" # set UI.style hiddenStyle
     
     -- On Left Click we Reveal the Square
     on UI.click button $ \_ -> do
-        squares <- liftIO $ readIORef squaresRef
-        let square = squares !! i !! j
-        let newSquare = reveal square
-        liftIO $ updateSquareInGrid squaresRef i j newSquare
-        _ <- updateButton button newSquare
-        when (isEmpty newSquare) $ revealNeighbours squaresRef i j
+        -- Check that the game state is active first
+        active <- liftIO $ readIORef gameState
+        when active $ do
+            -- Reveal the Square
+            squares <- liftIO $ readIORef squaresRef
+            let square = squares !! i !! j
+            let newSquare = reveal square
+            liftIO $ updateSquareInGrid squaresRef i j newSquare
+            updateButton button newSquare
+            -- If Square was an Unflagged Mine then End the Game
+            if isMine square && not (isFlagged square)
+                then do
+                    liftIO $ writeIORef gameState False
+                    runFunction $ ffi "console.log('Game Over.')"
+                else do
+                    -- If all Empty Squares Revealed then End the Game
+                    newSquares <- liftIO $ readIORef squaresRef
+                    if checkWin newSquares
+                        then do
+                            liftIO $ writeIORef gameState False
+                            runFunction $ ffi "console.log('You Win!')"
+                        else do
+                            -- If Square was Empty then reveal all neighbours
+                            when (isEmpty newSquare) $ revealNeighbours squaresRef gameState i j
 
     -- On Mouseover we Update the Square
     on UI.mousemove button $ \_ -> do
-        squares <- liftIO $ readIORef squaresRef
-        let square = squares !! i !! j
-        updateButton button square
+        -- Check that the game state is active first
+        active <- liftIO $ readIORef gameState
+        when active $ do
+            squares <- liftIO $ readIORef squaresRef
+            let square = squares !! i !! j
+            updateButton button square
     
     -- On Right Click we Flag/Unflag the Square
     on UI.contextmenu button $ \_ -> do
-        squares <- liftIO $ readIORef squaresRef
-        let square = squares !! i !! j
-        let newSquare = flag square
-        liftIO $ updateSquareInGrid squaresRef i j newSquare
-        updateButton button newSquare
+        -- Check that the game state is active first
+        active <- liftIO $ readIORef gameState
+        when active $ do
+            squares <- liftIO $ readIORef squaresRef
+            let square = squares !! i !! j
+            let newSquare = flag square
+            liftIO $ updateSquareInGrid squaresRef i j newSquare
+            updateButton button newSquare
     
     view   <- UI.div #+ [element button]
     return (button, view)
 
 -- Update the Button Text depending on State
-updateButton :: Element -> Square -> UI Element
+updateButton :: Element -> Square -> UI ()
 updateButton button square = do
     let (icon, style) = case square of
             Flagged _                  -> ("X", hiddenStyle)
@@ -193,16 +226,17 @@ updateButton button square = do
             Clear (Revealed (Empty 4)) -> [("color", "#8f00cb")]
             Clear (Revealed (Empty 5)) -> [("color", "orange")]
             _                          -> []
-    element button # set UI.text icon # set UI.style (style ++ colour)
+    _ <- element button # set UI.text icon # set UI.style (style ++ colour)
+    return ()
 
 -- Create the Grid of Buttons
-mkButtons :: IORef [[Square]] -> UI [Element]
-mkButtons squaresRef = do
+mkButtons :: IORef [[Square]] -> IORef Bool -> UI [Element]
+mkButtons squaresRef gameState = do
     -- Create 10 Columns
     rows <- forM [0..9] $ \i -> do
         -- Create 10 Rows
         rowButtons <- forM [0..9] $ \j -> do
-            (_, v) <- mkButton squaresRef i j
+            (_, v) <- mkButton squaresRef gameState i j
             return $ element v
         UI.div # set UI.style rowStyle #+ rowButtons
     grid <- UI.div # set UI.style gridStyle

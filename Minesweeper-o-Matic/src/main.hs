@@ -23,7 +23,8 @@ setup w = void $ do
     runFunction $ ffi "document.addEventListener('contextmenu', function(e) { e.preventDefault(); })"
     -- Create Grid of Buttons
     squaresRef <- liftIO $ newIORef =<< createGrid
-    buttons <- mkButtons squaresRef
+    gameState <- liftIO $ newIORef True
+    buttons <- mkButtons squaresRef gameState
     -- Display Grid
     getBody w #+ [UI.div #. "wrap" #+ (greet ++ map element buttons)]
 
