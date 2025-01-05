@@ -43,14 +43,27 @@ isEmpty _                            = False
 
 -- Reveal a Square
 reveal :: Square -> Square
-reveal (Clear (Hidden cell))   = Clear (Revealed cell)
-reveal square                  = square
+reveal (Clear (Hidden cell)) = Clear (Revealed cell)
+reveal square                = square
+
+-- Reveal a Square (including flagged ones)
+-- ONLY CALL THIS WHEN REVEALING MINES IN GAME OVER STATE
+forceReveal :: Square -> Square
+forceReveal (Flagged (Hidden cell)) = Clear (Revealed cell)
+forceReveal (Clear (Hidden cell))   = Clear (Revealed cell)
+forceReveal square                  = square
 
 -- Check if a Square is Revealed
 isRevealed :: Square -> Bool
 isRevealed (Flagged (Revealed _)) = True
 isRevealed (Clear (Revealed _))   = True
 isRevealed _                      = False
+
+-- Check if a Square is Hidden
+isHidden :: Square -> Bool
+isHidden (Flagged (Hidden _)) = True
+isHidden (Clear (Hidden _))   = True
+isHidden _                    = False
 
 -- Flag a Square
 flag :: Square -> Square
@@ -116,7 +129,7 @@ revealMines buttonsRef squaresRef = do
             let button = buttons !! i !! j
             let square = squares !! i !! j
             when (isMine square) $ do
-                let newSquare = reveal square
+                let newSquare = forceReveal square
                 liftIO $ updateSquareInGrid squaresRef i j newSquare
                 updateButton button newSquare
 

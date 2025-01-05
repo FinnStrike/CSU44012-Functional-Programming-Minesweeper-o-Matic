@@ -1,5 +1,7 @@
 module Player (module Player) where
 
+import System.IO.Unsafe (unsafePerformIO)
+
 import Control.Monad
 
 import Graphics.UI.Threepenny.Core hiding ((<|>), grid, style, row)
@@ -26,7 +28,7 @@ playMove squaresRef gameState = do
                 -- Log the move
                 liftIO $ putStrLn $ "Revealed square at (" ++ show x ++ ", " ++ show y ++ ")."
             Nothing -> do
-                -- Attemp to find a flag move
+                -- Attempt to find a flag move
                 case findFlagMove squares of
                     Just (x, y) -> do
                         -- Flag the mine
@@ -126,3 +128,56 @@ neighbourCoords x y size =
 countMines :: Square -> Int
 countMines (Clear (Revealed (Empty n))) = n
 countMines _ = 0
+
+-- Test Grid for Debugging Advanced Solver Techniques
+testGrid :: IO [[Square]]
+testGrid = return [[(Clear (Hidden (Empty 1))), (Clear (Hidden Mine)),
+                    (Clear (Hidden (Empty 2))), (Clear (Hidden Mine)),
+                    (Clear (Hidden (Empty 1))), (Clear (Hidden (Empty 1))),
+                    (Clear (Hidden Mine)), (Clear (Hidden (Empty 2))),
+                    (Clear (Hidden Mine)), (Clear (Hidden (Empty 1)))],
+                   [(Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 1))),
+                    (Clear (Revealed (Empty 2))), (Clear (Revealed (Empty 1))),
+                    (Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 1))),
+                    (Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 2))),
+                    (Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 1)))],
+                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))]]
