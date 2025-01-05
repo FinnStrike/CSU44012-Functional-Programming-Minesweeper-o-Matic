@@ -1,5 +1,5 @@
 import Control.Monad
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (forkIO, threadDelay)
 
 import System.Directory
 
@@ -28,19 +28,19 @@ setup w = void $ do
     void $ element resetButton # set UI.style resetStyle
     on UI.click resetButton $ \_ -> do
         void $ getBody w # set children []
-        newGame <- createGame
+        newGame <- createGame w
         newContainer <- UI.div # set UI.style containerStyle
             #+ [UI.div # set UI.style gameStyle #+ newGame, element resetButton]
         getBody w #+ (greet ++ [return newContainer])
     -- Set up the Game
-    game <- createGame
+    game <- createGame w
     container <- UI.div # set UI.style containerStyle
         #+ [UI.div # set UI.style gameStyle #+ game, element resetButton]
     -- Display Grid
     getBody w #+ (greet ++ [return container])
 
-createGame :: UI ([UI Element])
-createGame = do
+createGame :: Window -> UI ([UI Element])
+createGame w = do
     -- Create Grid of Squares
     squaresRef <- liftIO $ newIORef =<< createGrid
     -- Set Game State to True
@@ -48,13 +48,15 @@ createGame = do
     -- Set up Game Message
     message <- UI.div #. "message" # set text ""
     -- Create Grid of Buttons
-    buttons <- mkButtons squaresRef gameState message
+    buttons <- mkButtons w squaresRef gameState message
     -- Create Play Move Button
     playButton <- UI.button #+ [string "Play Move"]
     void $ element playButton # set UI.style playStyle
-    on UI.click playButton $ \_ -> playMove squaresRef gameState message
+    on UI.click playButton $ \_ -> playMove squaresRef gameState
     -- Return Game
-    return [UI.div #. "wrap" #+ ([element playButton] ++ map element buttons ++ [element message])]
+    return [UI.div #. "wrap" #+ ([element playButton] 
+            ++ map element buttons 
+            ++ [element message])]
 
 greet :: [UI Element]
 greet =

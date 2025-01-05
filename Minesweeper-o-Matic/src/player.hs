@@ -10,8 +10,8 @@ import Data.List
 import Minesweeper
 
 -- Attempt to play the best move available
-playMove :: IORef [[Square]] -> IORef Bool -> Element -> UI ()
-playMove squaresRef gameState message = do
+playMove :: IORef [[Square]] -> IORef Bool -> UI ()
+playMove squaresRef gameState = do
     squares <- liftIO $ readIORef squaresRef
     active <- liftIO $ readIORef gameState
     when active $ do
@@ -22,9 +22,7 @@ playMove squaresRef gameState message = do
                 let square = squares !! x !! y
                 let newSquare = reveal square
                 liftIO $ updateSquareInGrid squaresRef x y newSquare
-                (button, _) <- mkButton squaresRef gameState message x y
-                updateButton button newSquare
-                when (isEmpty newSquare) $ revealNeighbours squaresRef gameState message x y
+                when (isEmpty newSquare) $ revealNeighbours squaresRef x y
                 -- Log the move
                 liftIO $ putStrLn $ "Revealed square at (" ++ show x ++ ", " ++ show y ++ ")."
             Nothing -> do
@@ -35,8 +33,6 @@ playMove squaresRef gameState message = do
                         let square = squares !! x !! y
                         let newSquare = flag square
                         liftIO $ updateSquareInGrid squaresRef x y newSquare
-                        (button, _) <- mkButton squaresRef gameState message x y
-                        updateButton button newSquare
                         -- Log the move
                         liftIO $ putStrLn $ "Flagged square at (" ++ show x ++ ", " ++ show y ++ ")."
                     Nothing -> do
