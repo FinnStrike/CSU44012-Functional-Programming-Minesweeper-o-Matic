@@ -1,4 +1,4 @@
-module Player where
+module Player (module Player) where
 
 import Control.Monad
 

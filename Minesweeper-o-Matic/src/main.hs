@@ -1,5 +1,4 @@
 import Control.Monad
-import Control.Concurrent (forkIO, threadDelay)
 
 import System.Directory
 
@@ -50,7 +49,7 @@ createGame w = do
     -- Create Grid of Buttons
     buttons <- mkButtons w squaresRef gameState message
     -- Create Play Move Button
-    playButton <- UI.button #+ [string "Play Move"]
+    playButton <- UI.button #+ [string "✨ Play Move with AI"]
     void $ element playButton # set UI.style playStyle
     on UI.click playButton $ \_ -> playMove squaresRef gameState
     -- Return Game

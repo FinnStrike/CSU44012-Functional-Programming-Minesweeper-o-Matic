@@ -1,4 +1,4 @@
-module Styles where
+module Styles (module Styles) where
 
 -- CSS Styles
 hiddenStyle :: [(String, String)]
@@ -18,6 +18,12 @@ mineStyle :: [(String, String)]
 mineStyle = [("width", "25px"), ("height", "25px"),
              ("border-color", "darkred"), ("border-width", "medium"),
              ("background-color", "red"), ("font-weight", "bold"), ("font-size", "x-small")]
+
+badFlagStyle :: [(String, String)]
+badFlagStyle = [("width", "25px"), ("height", "25px"),
+                ("border-color", "#bd0b0b #4a0202 #4a0202 #bd0b0b"),
+                ("border-width", "3px"), ("outline", "none"),
+                ("background-color", "maroon"), ("font-weight", "bold")]
 
 rowStyle :: [(String, String)]
 rowStyle = [("display", "inline-flex"), ("height", "25px"), ("width", "250px")]
@@ -39,10 +45,14 @@ messageStyle = [("font-size", "xx-large"), ("font-weight", "bold"),
                 ("border-bottom", "10px solid black"), ("margin-top", "10px")]
 
 playStyle :: [(String, String)]
-playStyle = [("width", "200px"), ("height", "25px"), ("margin", "0px 30px 30px 30px")]
+playStyle = [("width", "200px"), ("height", "35px"), 
+             ("margin", "0px 30px 20px"), ("border-radius", "20px"),
+             ("font-weight", "bold"), ("font-family", "system-ui"),
+             ("font-size", "11pt"), 
+             ("background", "linear-gradient(15deg, grey, transparent)")]
 
 resetStyle :: [(String, String)]
-resetStyle = [("margin-left", "20px"), ("margin-top", "85px")]
+resetStyle = [("margin-left", "20px"), ("margin-top", "55px")]
 
 containerStyle :: [(String, String)]
 containerStyle = [("display", "flex"), ("align-items", "flex-start")]

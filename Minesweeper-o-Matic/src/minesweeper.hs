@@ -1,4 +1,4 @@
-module Minesweeper where
+module Minesweeper (module Minesweeper) where
 
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad
@@ -106,6 +106,31 @@ checkWin squares =
         revealedCount = length [() | row <- squares, Clear (Revealed _) <- row]
     in revealedCount == totalSquares - mineCount
 
+-- Reveal all mines in the grid
+revealMines :: IORef [[Element]] -> IORef [[Square]] -> UI ()
+revealMines buttonsRef squaresRef = do
+    buttons <- liftIO $ readIORef buttonsRef
+    squares <- liftIO $ readIORef squaresRef
+    forM_ [0..9] $ \i -> do
+        forM_ [0..9] $ \j -> do
+            let button = buttons !! i !! j
+            let square = squares !! i !! j
+            when (isMine square) $ do
+                let newSquare = reveal square
+                liftIO $ updateSquareInGrid squaresRef i j newSquare
+                updateButton button newSquare
+
+revealBadFlags :: IORef [[Element]] -> IORef [[Square]] -> UI ()
+revealBadFlags buttonsRef squaresRef = do
+    buttons <- liftIO $ readIORef buttonsRef
+    squares <- liftIO $ readIORef squaresRef
+    forM_ [0..9] $ \i -> do
+        forM_ [0..9] $ \j -> do
+            let button = buttons !! i !! j
+            let square = squares !! i !! j
+            when (isFlagged square && not (isMine square)) $ do
+                void $ element button # set UI.style badFlagStyle
+
 -- Calculate the Value of each Square (i.e. number of neighbouring mines)
 calcNeighbours :: [[Square]] -> [[Square]]
 calcNeighbours grid = 
@@ -153,8 +178,8 @@ updateSquareInGrid squaresRef x y newSquare = do
     liftIO $ writeIORef squaresRef updatedGrid
 
 -- Create a new Button with corresponding Square
-mkButton :: IORef [[Square]] -> IORef Bool -> Element -> Int -> Int -> UI (Element, Element)
-mkButton squaresRef gameState message i j = do
+mkButton :: IORef [[Square]] -> IORef Bool -> Int -> Int -> UI (Element, Element)
+mkButton squaresRef gameState i j = do
     -- Create the Button Element and Style
     button <- UI.button #. "button" # set UI.style hiddenStyle
     
@@ -169,32 +194,8 @@ mkButton squaresRef gameState message i j = do
             let newSquare = reveal square
             liftIO $ updateSquareInGrid squaresRef i j newSquare
             updateButton button newSquare
-            -- If Square was an Unflagged Mine then End the Game
-            if isMine square && not (isFlagged square)
-                then do
-                    void $ element message # set UI.style (messageStyle ++ [("color", "red")])
-                    void $ element message # set UI.text "Game Over."
-                    liftIO $ writeIORef gameState False
-                else do
-                    -- If all Empty Squares Revealed then End the Game
-                    newSquares <- liftIO $ readIORef squaresRef
-                    if checkWin newSquares
-                        then do
-                            void $ element message # set UI.style (messageStyle ++ [("color", "yellow")])
-                            void $ element message # set UI.text "Congratulations!"
-                            liftIO $ writeIORef gameState False
-                        else do
-                            -- If Square was Empty then reveal all neighbours
-                            when (isEmpty newSquare) $ revealNeighbours squaresRef i j
-
-    -- On Mouseover we Update the Square
-    on UI.mousemove button $ \_ -> do
-        -- Check that the game state is active first
-        active <- liftIO $ readIORef gameState
-        when active $ do
-            squares <- liftIO $ readIORef squaresRef
-            let square = squares !! i !! j
-            updateButton button square
+            -- If Square was Empty then reveal all neighbours
+            when (isEmpty newSquare) $ revealNeighbours squaresRef i j
     
     -- On Right Click we Flag/Unflag the Square
     on UI.contextmenu button $ \_ -> do
@@ -232,8 +233,7 @@ updateButton button square = do
             Clear (Revealed (Empty 7)) -> [("color", "darkslategrey")]
             Clear (Revealed (Empty 8)) -> [("color", "black")]
             _                          -> []
-    _ <- element button # set UI.text icon # set UI.style (style ++ colour)
-    return ()
+    void $ element button # set UI.text icon # set UI.style (style ++ colour)
 
 -- Create the Grid of Buttons
 mkButtons :: Window -> IORef [[Square]] -> IORef Bool -> Element -> UI [Element]
@@ -244,7 +244,7 @@ mkButtons w squaresRef gameState message = do
     rows <- forM [0..9] $ \i -> do
         -- Create 10 Rows
         rowButtons <- forM [0..9] $ \j -> do
-            (b, v) <- mkButton squaresRef gameState message i j
+            (b, v) <- mkButton squaresRef gameState i j
             -- Update the buttonsRef with the new button
             liftIO $ modifyIORef buttonsRef (\g ->
                 if length g > i
@@ -254,25 +254,42 @@ mkButtons w squaresRef gameState message = do
         UI.div # set UI.style rowStyle #+ rowButtons
     grid <- UI.div # set UI.style gridStyle
         #+ map element rows
-    liftIO $ forkIO $ runUI w $ loop buttonsRef squaresRef gameState
+    void $ liftIO $ forkIO $ runUI w $ loop buttonsRef squaresRef gameState message 
     return [grid]
 
 -- Loop to keep grid appearance updated
-loop :: IORef [[Element]] -> IORef [[Square]] -> IORef Bool -> UI ()
-loop buttonsRef squaresRef gameState = do
+loop :: IORef [[Element]] -> IORef [[Square]] -> IORef Bool -> Element -> UI ()
+loop buttonsRef squaresRef gameState message = do
     active <- liftIO $ readIORef gameState
     when active $ do
-        updateAllButtons buttonsRef squaresRef
+        updateGrid buttonsRef squaresRef gameState message
         liftIO $ threadDelay 100000
-        loop buttonsRef squaresRef gameState
+        loop buttonsRef squaresRef gameState message
 
--- Update every button in the grid
-updateAllButtons :: IORef [[Element]] -> IORef [[Square]] -> UI ()
-updateAllButtons buttonsRef squaresRef = do 
+-- Update the grid and check win/lose conditions
+updateGrid :: IORef [[Element]] -> IORef [[Square]] -> IORef Bool -> Element -> UI ()
+updateGrid buttonsRef squaresRef gameState message = do 
     buttons <- liftIO $ readIORef buttonsRef
     squares <- liftIO $ readIORef squaresRef
+    gameOverRef <- liftIO $ newIORef False
     forM_ [0..9] $ \i -> do
         forM_ [0..9] $ \j -> do
             let button = buttons !! i !! j
             let square = squares !! i !! j
             updateButton button square
+            -- If Square is a Revealed Mine set End Game Flag
+            when (isMine square && isRevealed square) $ do
+                void $ element message # set UI.style (messageStyle ++ [("color", "red")])
+                void $ element message # set UI.text "Game Over."
+                liftIO $ writeIORef gameOverRef True
+    -- If End Game Flag is set then end the game
+    gameOver <- liftIO $ readIORef gameOverRef
+    when gameOver $ do
+        revealMines buttonsRef squaresRef
+        revealBadFlags buttonsRef squaresRef
+        liftIO $ writeIORef gameState False
+    -- If all Empty Squares Revealed then End the Game
+    when (checkWin squares) $ do
+        void $ element message # set UI.style (messageStyle ++ [("color", "yellow")])
+        void $ element message # set UI.text "Congratulations!"
+        liftIO $ writeIORef gameState False
