@@ -41,6 +41,14 @@ isEmpty :: Square -> Bool
 isEmpty (Clear (Revealed (Empty 0))) = True
 isEmpty _                            = False
 
+-- Check if a Square has N neighbouring Mines
+hasNMines :: Square -> Int -> Bool
+hasNMines (Flagged (Hidden (Empty x))) n   = (x == n)
+hasNMines (Flagged (Revealed (Empty x))) n = (x == n)
+hasNMines (Clear (Hidden (Empty x))) n     = (x == n)
+hasNMines (Clear (Revealed (Empty x))) n   = (x == n)
+hasNMines _ _                              = False
+
 -- Reveal a Square
 reveal :: Square -> Square
 reveal (Clear (Hidden cell)) = Clear (Revealed cell)

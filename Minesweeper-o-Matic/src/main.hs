@@ -41,7 +41,7 @@ setup w = void $ do
 createGame :: Window -> UI ([UI Element])
 createGame w = do
     -- Create Grid of Squares
-    squaresRef <- liftIO $ newIORef =<< createGrid
+    squaresRef <- liftIO $ newIORef =<< testGrid
     -- Set Game State to True
     gameState <- liftIO $ newIORef True
     -- Set up Game Message
