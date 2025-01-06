@@ -38,22 +38,19 @@ playMove squaresRef gameState = do
                         -- Log the move
                         liftIO $ putStrLn $ "Flagged square at (" ++ show x ++ ", " ++ show y ++ ")."
                     Nothing -> do
-                        -- Log that no move was found
-                        liftIO $ putStrLn "No safe moves available."
-                        return ()
-                        -- -- Attempt to find a case of 1-2-X
-                        -- case find12XFlagMove squares of
-                        --     Just (x, y) -> do
-                        --         -- Flag the mine
-                        --         let square = squares !! x !! y
-                        --         let newSquare = flag square
-                        --         liftIO $ updateSquareInGrid squaresRef x y newSquare
-                        --         -- Log the move
-                        --         liftIO $ putStrLn $ "Flagged square at (" ++ show x ++ ", " ++ show y ++ ")."
-                        --     Nothing -> do
-                        --         -- Log that no move was found
-                        --         liftIO $ putStrLn "No safe moves available."
-                        --         return ()
+                        -- Attempt to find a case of 1-2-X to flag
+                        case find12XFlagMove squares of
+                            Just (x, y) -> do
+                                -- Flag the mine
+                                let square = squares !! x !! y
+                                let newSquare = flag square
+                                liftIO $ updateSquareInGrid squaresRef x y newSquare
+                                -- Log the move
+                                liftIO $ putStrLn $ "Flagged square at (" ++ show x ++ ", " ++ show y ++ ")."
+                            Nothing -> do
+                                -- Log that no move was found
+                                liftIO $ putStrLn "No safe moves available."
+                                return ()
 
 -- Attempt to find an unambiguously safe move
 findSafeReveal :: [[Square]] -> Maybe (Int, Int)
@@ -98,47 +95,107 @@ find12XFlagMove squares =
         -- Check for the 1-2-X pattern
         flagMoves12X = [ (nr, nc)
                        | (r, c) <- coords
-                       , check12X squares r c (1) (-1)
-                       , let (nr, nc) = (r+1, c-2) ]
+                       , Just (nr, nc) <- 
+                            [ get12XRow squares r c (-1) 1
+                            , get12XRow squares r c (-1) (-1)
+                            , get12XRow squares r c 1    1
+                            , get12XRow squares r c 1    (-1) 
+                            , get12XCol squares r c (-1) 1
+                            , get12XCol squares r c (-1) (-1)
+                            , get12XCol squares r c 1    1
+                            , get12XCol squares r c 1    (-1) ]]
     in listToMaybe (flagMoves12X)
 
--- Check if a 3x3 grid satisfies the criteria for 1-2-X (or X-2-1)
+-- Check if a grid section satisfies the criteria for 1-2-X in rows
 --   We pass in the coordinates of the 1 Square
 --   We pass in a parameter p to determine which position we search
---   If p = -1 we search above/left, if p = +1 we search below/right
---   We pass in a parameter d to determine which direction we search
+--   If p = -1 we search the row above, if p = +1 we search the row below
+--   We pass in a parameter d to determine which direction we search (right/left)
 --   If d = +1 we search for 1-2-X, if d = -1 we search for X-2-1
-check12X :: [[Square]] -> Int -> Int -> Int -> Int -> Bool
-check12X squares r c p d = 
+-- Returns the coordinates of the Square to Flag if pattern found
+get12XRow :: [[Square]] -> Int -> Int -> Int -> Int -> Maybe (Int, Int)
+get12XRow squares i j p d = 
     let size = length squares
-        square = squares !! r !! c
-        n1 = squares !! r !! (c+(d*1))
-        n2 = squares !! r !! (c+(d*2))
-        s1 = squares !! (r+(p*1)) !! c
-        s2 = squares !! (r+(p*1)) !! (c+(d*1))
-        s3 = squares !! (r+(p*1)) !! (c+(d*2))
-        d1Safe = safeSquare squares size (r-(p*1)) c
-        d2Safe = safeSquare squares size (r-(p*1)) (c+(d*1))
-        d3Safe = safeSquare squares size (r-(p*1)) (c+(d*2))
+        -- Calculate the coordinates of adjacent squares based on the direction and position
+        square = squares !! i !! j
+        n1 = squares !! i !! (j+(d*1))
+        n2 = squares !! i !! (j+(d*2))
+        -- Calculate the "search" row (above or below depending on p)
+        s1 = squares !! (i+(p*1)) !! j
+        s2 = squares !! (i+(p*1)) !! (j+(d*1))
+        s3 = squares !! (i+(p*1)) !! (j+(d*2))
+        -- Check the "discard" row (above or below depending on p)
+        d1Safe = safeSquare squares size (i-(p*1)) j
+        d2Safe = safeSquare squares size (i-(p*1)) (j+(d*1))
+        d3Safe = safeSquare squares size (i-(p*1)) (j+(d*2))
+        -- Helper values for checking bounds
         oP1 = (1-p) `div` 2        -- 1 when p is -1, 0 when p is 1
         oP2 = (1-(p*(-1))) `div` 2 -- 0 when p is -1, 1 when p is 1
         oD1 = 1 - d                -- 2 when d is -1, 0 when d is 1
         oD2 = 1 - (d*(-1))         -- 0 when d is -1, 2 when d is 1
-    in isRevealed square
-       && (p == 1 || p == -1)
-       && (d == 1 || d == -1)
-       && r-oP1 >= 0 && r+oP2 < size
-       && c-oD1 >= 0 && c+oD2 < size
-       && isRevealed n1 && isRevealed n2
-       && isHidden s1 && isHidden s2 && isHidden s3
-       && d1Safe && d2Safe && d3Safe
-       && hasNMines square 1
-       && hasNMines n1 2
+    -- Ensure all 1-2-X criteria are satisfied
+    in if isRevealed square
+          && (p == 1 || p == -1)
+          && (d == 1 || d == -1)
+          && i-oP1 >= 0 && i+oP2 < size
+          && j-oD1 >= 0 && j+oD2 < size
+          && isRevealed n1 && isRevealed n2
+          && isHidden s1 && isHidden s2 && isHidden s3
+          && d1Safe && d2Safe && d3Safe
+          && hasNMines square 1
+          && hasNMines n1 2
+          && not (isFlagged (squares !! (i+(p*1)) !! (j+(d*2))))
+    -- If valid pattern has been found, return the coordinates to Flag
+       then Just (i+(p*1), j+(d*2))
+       else Nothing
 
--- Check if a square is either Revealed or Out of Bounds (used in 1-2-X)
+-- Check if a grid section satisfies the criteria for 1-2-X in columns
+--   We pass in the coordinates of the 1 Square
+--   We pass in a parameter p to determine which position we search
+--   If p = -1 we search the left column, if p = +1 we search the right column
+--   We pass in a parameter d to determine which direction we search (down/up)
+--   If d = +1 we search for 1-2-X, if d = -1 we search for X-2-1
+-- Returns the coordinates of the Square to Flag if pattern found
+get12XCol :: [[Square]] -> Int -> Int -> Int -> Int -> Maybe (Int, Int)
+get12XCol squares i j p d = 
+    let size = length squares
+        -- Calculate the coordinates of adjacent squares based on the direction and position
+        square = squares !! i !! j
+        n1 = squares !! (i+(d*1)) !! j
+        n2 = squares !! (i+(d*2)) !! j
+        -- Calculate the "search" column (left or right depending on p)
+        s1 = squares !! i         !! (j+(p*1))
+        s2 = squares !! (i+(d*1)) !! (j+(p*1))
+        s3 = squares !! (i+(d*2)) !! (j+(p*1))
+        -- Check the "discard" column (left or right depending on p)
+        d1Safe = safeSquare squares size i         (j-(p*1))
+        d2Safe = safeSquare squares size (i+(d*1)) (j-(p*1))
+        d3Safe = safeSquare squares size (i+(d*2)) (j-(p*1))
+        -- Helper values for checking bounds
+        oP1 = (1-p) `div` 2        -- 1 when p is -1, 0 when p is 1
+        oP2 = (1-(p*(-1))) `div` 2 -- 0 when p is -1, 1 when p is 1
+        oD1 = 1 - d                -- 2 when d is -1, 0 when d is 1
+        oD2 = 1 - (d*(-1))         -- 0 when d is -1, 2 when d is 1
+    -- Ensure all 1-2-X criteria are satisfied
+    in if isRevealed square
+          && (p == 1 || p == -1)
+          && (d == 1 || d == -1)
+          && i-oD1 >= 0 && i+oD2 < size
+          && j-oP1 >= 0 && j+oP2 < size
+          && isRevealed n1 && isRevealed n2
+          && isHidden s1 && isHidden s2 && isHidden s3
+          && d1Safe && d2Safe && d3Safe
+          && hasNMines square 1
+          && hasNMines n1 2
+          && not (isFlagged (squares !! (i+(d*2)) !! (j+(p*1))))
+    -- If valid pattern has been found, return the coordinates to Flag
+       then Just (i+(d*2), j+(p*1))
+       else Nothing
+
+-- Check if a square is either Revealed or Out of Bounds (used in 1-2-X check)
 safeSquare :: [[Square]] -> Int -> Int -> Int -> Bool
-safeSquare squares size r c 
-    | r >= 0 && r < size && c >= 0 && c < size = isRevealed (squares !! r !! c)
+safeSquare squares size i j 
+    | i >= 0 && i < size && j >= 0 && j < size = isRevealed (squares !! i !! j)
     | otherwise = True
 
 -- Attempt to find the least dangerous move available
@@ -195,53 +252,53 @@ countMines _ = 0
 
 -- Test Grid for Debugging Advanced Solver Techniques
 testGrid :: IO [[Square]]
-testGrid = return [[(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
-                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
-                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
-                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
-                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
-                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
-                   [(Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
-                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
-                   [(Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 1))),
-                    (Clear (Revealed (Empty 2))), (Clear (Revealed (Empty 1))),
-                    (Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 1))),
-                    (Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 2))),
-                    (Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 1)))],
-                   [(Clear (Hidden (Empty 1))), (Clear (Hidden Mine)),
+testGrid = return [[(Clear (Hidden (Empty 2))), (Clear (Hidden Mine)),
                     (Clear (Hidden (Empty 2))), (Clear (Hidden Mine)),
-                    (Clear (Hidden (Empty 1))), (Clear (Hidden (Empty 1))),
-                    (Clear (Hidden Mine)), (Clear (Hidden (Empty 2))),
+                    (Clear (Hidden (Empty 2))), (Clear (Hidden Mine)),
+                    (Clear (Hidden (Empty 2))), (Clear (Hidden Mine)),
                     (Clear (Hidden Mine)), (Clear (Hidden (Empty 1)))],
-                   [(Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 1))),
+                   [(Clear (Hidden Mine)), (Clear (Revealed (Empty 2))),
                     (Clear (Revealed (Empty 2))), (Clear (Revealed (Empty 1))),
-                    (Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 1))),
-                    (Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 2))),
-                    (Clear (Revealed (Empty 1))), (Clear (Revealed (Empty 1)))]]
+                    (Clear (Revealed (Empty 2))), (Clear (Revealed (Empty 1))),
+                    (Clear (Revealed (Empty 2))), (Clear (Revealed (Empty 2))),
+                    (Clear (Revealed (Empty 2))), (Clear (Revealed (Empty 1)))],
+                   [(Clear (Hidden (Empty 2))), (Clear (Revealed (Empty 2))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Hidden Mine)), (Clear (Revealed (Empty 1))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Hidden (Empty 1))), (Clear (Revealed (Empty 1))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Hidden (Empty 1))), (Clear (Revealed (Empty 1))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Hidden Mine)), (Clear (Revealed (Empty 1))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Hidden (Empty 2))), (Clear (Revealed (Empty 2))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Hidden Mine)), (Clear (Revealed (Empty 1))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))],
+                   [(Clear (Hidden (Empty 1))), (Clear (Revealed (Empty 1))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0))),
+                    (Clear (Revealed (Empty 0))), (Clear (Revealed (Empty 0)))]]
