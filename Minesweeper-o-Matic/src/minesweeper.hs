@@ -123,6 +123,27 @@ placeMines size positions =
      | c <- [0..size-1]] 
      | r <- [0..size-1]]
 
+-- Calculate the clue of each Square (i.e. number of neighbouring mines)
+calcNeighbours :: [[Square]] -> [[Square]]
+calcNeighbours grid = 
+    [[ if isMine (grid !! r !! c)
+        then grid !! r !! c
+        else let neighbours = countAdj grid r c
+             in updateSq (grid !! r !! c) neighbours
+     | c <- [0..length grid - 1]]
+     | r <- [0..length grid - 1]]
+    where 
+        -- Count the adjacent mines of every square
+        countAdj g r c = 
+            length [() | dr <- [-1..1], dc <- [-1..1],
+                         let nr = r + dr, 
+                         let nc = c + dc,
+                         nr >= 0, nr < length g,
+                         nc >= 0, nc < length (head g),
+                         isMine (g !! nr !! nc)]
+        updateSq (Clear (Hidden (Empty _))) n = Clear (Hidden (Empty n))
+        updateSq square _                     = square
+
 -- Check if all Empty Squares have been Revealed (Minesweeper Win Condition)
 checkWin :: [[Square]] -> Bool
 checkWin squares =
@@ -143,7 +164,7 @@ revealMines buttonsRef squaresRef = do
             let square = squares !! i !! j
             when (isMine square) $ do
                 let newSquare = forceReveal square
-                liftIO $ updateSquareInGrid squaresRef i j newSquare
+                liftIO $ updateSquare squaresRef i j newSquare
                 updateButton button newSquare
 
 -- Change the visual style of any misplaced flags
@@ -158,27 +179,6 @@ revealBadFlags buttonsRef squaresRef = do
             let square = squares !! i !! j
             when (isFlagged square && not (isMine square)) $ do
                 void $ element button # set UI.style badFlagStyle
-
--- Calculate the clue of each Square (i.e. number of neighbouring mines)
-calcNeighbours :: [[Square]] -> [[Square]]
-calcNeighbours grid = 
-    [[ if isMine (grid !! r !! c)
-        then grid !! r !! c
-        else let neighbours = countAdj grid r c
-             in updateSquare (grid !! r !! c) neighbours
-     | c <- [0..length grid - 1]]
-     | r <- [0..length grid - 1]]
-    where 
-        -- Count the adjacent mines of every square
-        countAdj g r c = 
-            length [() | dr <- [-1..1], dc <- [-1..1],
-                         let nr = r + dr, 
-                         let nc = c + dc,
-                         nr >= 0, nr < length g,
-                         nc >= 0, nc < length (head g),
-                         isMine (g !! nr !! nc)]
-        updateSquare (Clear (Hidden (Empty _))) n = Clear (Hidden (Empty n))
-        updateSquare square _                     = square
 
 -- Reveal Neighbours of a Revealed Empty Square
 --   When an empty square is revealed, all of its neighbours
@@ -196,13 +196,13 @@ revealNeighbours squaresRef r c = do
                 -- Reveal the square if not already revealed
                 unless (isRevealed neighbour) $ do
                     let newNeighbour = reveal neighbour
-                    liftIO $ updateSquareInGrid squaresRef nr nc newNeighbour
+                    liftIO $ updateSquare squaresRef nr nc newNeighbour
                     -- Recursively reveal neighbours if the neighbour is empty
                     when (isEmpty newNeighbour) $ revealNeighbours squaresRef nr nc
 
 -- Update a square in the grid with a new status
-updateSquareInGrid :: IORef [[Square]] -> Int -> Int -> Square -> IO ()
-updateSquareInGrid squaresRef r c newSquare = do
+updateSquare :: IORef [[Square]] -> Int -> Int -> Square -> IO ()
+updateSquare squaresRef r c newSquare = do
     squares <- liftIO $ readIORef squaresRef
     let updatedRow = take c (squares !! r) ++ [newSquare] ++ drop (c + 1) (squares !! r)
     let updatedGrid = take r squares ++ [updatedRow] ++ drop (r + 1) squares
@@ -223,7 +223,7 @@ mkButton squaresRef gameState i j = do
             squares <- liftIO $ readIORef squaresRef
             let square = squares !! i !! j
             let newSquare = reveal square
-            liftIO $ updateSquareInGrid squaresRef i j newSquare
+            liftIO $ updateSquare squaresRef i j newSquare
             updateButton button newSquare
             -- If Square was Empty then reveal all neighbours
             when (isEmpty newSquare) $ revealNeighbours squaresRef i j
@@ -236,7 +236,7 @@ mkButton squaresRef gameState i j = do
             squares <- liftIO $ readIORef squaresRef
             let square = squares !! i !! j
             let newSquare = flag square
-            liftIO $ updateSquareInGrid squaresRef i j newSquare
+            liftIO $ updateSquare squaresRef i j newSquare
             updateButton button newSquare
     
     -- Return button with view
