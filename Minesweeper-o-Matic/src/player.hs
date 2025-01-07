@@ -6,7 +6,7 @@ import Graphics.UI.Threepenny.Core hiding ((<|>), grid, style, row)
 
 import Data.IORef
 import Data.Maybe
-import Data.List
+import qualified Data.List as L
 import Minesweeper
 
 -- Attempt to play the best move available
@@ -17,45 +17,45 @@ playMove squaresRef gameState = do
     when active $ do
         -- Attempt to find a safe reveal move
         case findSafeReveal squares of
-            Just (x, y) -> do
+            Just (r, c) -> do
                 -- Reveal the safe square
-                let square = squares !! x !! y
+                let square = squares !! r !! c
                 let newSquare = reveal square
-                liftIO $ updateSquareInGrid squaresRef x y newSquare
-                when (isEmpty newSquare) $ revealNeighbours squaresRef x y
+                liftIO $ updateSquareInGrid squaresRef r c newSquare
+                when (isEmpty newSquare) $ revealNeighbours squaresRef r c
                 -- Log the move
-                liftIO $ putStrLn $ "Revealed square at (" ++ show x ++ ", " ++ show y ++ ")."
+                liftIO $ putStrLn $ "Revealed square at (" ++ show r ++ ", " ++ show c ++ ")."
             Nothing -> do
                 -- Attempt to find a flag move
                 case findFlagMove squares of
-                    Just (x, y) -> do
+                    Just (r, c) -> do
                         -- Flag the mine
-                        let square = squares !! x !! y
+                        let square = squares !! r !! c
                         let newSquare = flag square
-                        liftIO $ updateSquareInGrid squaresRef x y newSquare
+                        liftIO $ updateSquareInGrid squaresRef r c newSquare
                         -- Log the move
-                        liftIO $ putStrLn $ "Flagged square at (" ++ show x ++ ", " ++ show y ++ ")."
+                        liftIO $ putStrLn $ "Flagged square at (" ++ show r ++ ", " ++ show c ++ ")."
                     Nothing -> do
                         -- Attempt to find a case of 1-2-X to flag
                         case find12XFlagMove squares of
-                            Just (x, y) -> do
+                            Just (r, c) -> do
                                 -- Flag the mine
-                                let square = squares !! x !! y
+                                let square = squares !! r !! c
                                 let newSquare = flag square
-                                liftIO $ updateSquareInGrid squaresRef x y newSquare
+                                liftIO $ updateSquareInGrid squaresRef r c newSquare
                                 -- Log the move
-                                liftIO $ putStrLn $ "Flagged square at (" ++ show x ++ ", " ++ show y ++ ")."
+                                liftIO $ putStrLn $ "Flagged square at (" ++ show r ++ ", " ++ show c ++ ")."
                             Nothing -> do
                                 -- If all else fails attempt to find the least dangerous square to reveal
                                 case findLeastDangerousReveal squares of
-                                    Just (x, y) -> do
+                                    Just (r, c) -> do
                                         -- Reveal the returned square
-                                        let square = squares !! x !! y
+                                        let square = squares !! r !! c
                                         let newSquare = reveal square
-                                        liftIO $ updateSquareInGrid squaresRef x y newSquare
-                                        when (isEmpty newSquare) $ revealNeighbours squaresRef x y
+                                        liftIO $ updateSquareInGrid squaresRef r c newSquare
+                                        when (isEmpty newSquare) $ revealNeighbours squaresRef r c
                                         -- Log the move
-                                        liftIO $ putStrLn $ "Revealed square at (" ++ show x ++ ", " ++ show y ++ ")."
+                                        liftIO $ putStrLn $ "Revealed square at (" ++ show r ++ ", " ++ show c ++ ")."
                                     Nothing -> do
                                         -- Log that no move was found
                                         liftIO $ putStrLn "No safe moves available."
@@ -65,35 +65,35 @@ playMove squaresRef gameState = do
 findSafeReveal :: [[Square]] -> Maybe (Int, Int)
 findSafeReveal squares = 
     let size = length squares
-        coords = [(x, y) | x <- [0..size-1], y <- [0..size-1]]
-        safeMoves = [ (nx, ny)
-                    | (x, y) <- coords
-                    , let square = squares !! x !! y
+        coords = [(r, c) | r <- [0..size-1], c <- [0..size-1]]
+        safeMoves = [ (nr, nc)
+                    | (r, c) <- coords
+                    , let square = squares !! r !! c
                     , isRevealed square
-                    , let neighbours = getNeighbours squares x y
+                    , let neighbours = getNeighbours squares r c
                     , let flaggedCount = length $ filter isFlagged neighbours
                     , flaggedCount == countMines square
-                    , let hiddenNeighbours = [(nx, ny) | (nx, ny) <- neighbourCoords x y size, isClearAndHidden (squares !! nx !! ny)]
+                    , let hiddenNeighbours = [(nr, nc) | (nr, nc) <- neighbourCoords r c size, isClearAndHidden (squares !! nr !! nc)]
                     , not (null hiddenNeighbours)
-                    , let (nx, ny) = head hiddenNeighbours ]
+                    , let (nr, nc) = head hiddenNeighbours ]
     in listToMaybe safeMoves
 
 -- Attempt to find a definite mine that can be flagged
 findFlagMove :: [[Square]] -> Maybe (Int, Int)
 findFlagMove squares = 
     let size = length squares
-        coords = [(x, y) | x <- [0..size-1], y <- [0..size-1]]
-        flagMoves = [ (nx, ny)
-                    | (x, y) <- coords
-                    , let square = squares !! x !! y
+        coords = [(r, c) | r <- [0..size-1], c <- [0..size-1]]
+        flagMoves = [ (nr, nc)
+                    | (r, c) <- coords
+                    , let square = squares !! r !! c
                     , isRevealed square
-                    , let neighbours = getNeighbours squares x y
+                    , let neighbours = getNeighbours squares r c
                     , let flaggedCount = length $ filter isFlagged neighbours
-                    , let clearHiddenNeighbours = [(nx, ny) | (nx, ny) <- neighbourCoords x y size, isClearAndHidden (squares !! nx !! ny)]
+                    , let clearHiddenNeighbours = [(nr, nc) | (nr, nc) <- neighbourCoords r c size, isClearAndHidden (squares !! nr !! nc)]
                     , let clue = countMines square
                     , length clearHiddenNeighbours == clue - flaggedCount
                     , not (null clearHiddenNeighbours)
-                    , let (nx, ny) = head clearHiddenNeighbours ]
+                    , let (nr, nc) = head clearHiddenNeighbours ]
     in listToMaybe flagMoves
 
 -- Attempt to flag a mine using the 1-2-X pattern
@@ -212,17 +212,17 @@ findLeastDangerousReveal :: [[Square]] -> Maybe (Int, Int)
 findLeastDangerousReveal squares =
     let probabilities = calculateProbabilities squares
         size = length probabilities
-        coords = [(x, y) | x <- [0..size-1], y <- [0..length (head probabilities) - 1]]
-        hiddenSquares = [ (x, y)
-                        | (x, y) <- coords
-                        , let square = squares !! x !! y
+        coords = [(r, c) | r <- [0..size-1], c <- [0..length (head probabilities) - 1]]
+        hiddenSquares = [ (r, c)
+                        | (r, c) <- coords
+                        , let square = squares !! r !! c
                         , not (isRevealed square)
                         , not (isFlagged square) ]
         -- Extract probabilities for hidden squares only
-        probabilitiesForHidden = [ ((x, y), probabilities !! x !! y)
-                                  | (x, y) <- hiddenSquares ]
+        probabilitiesForHidden = [ ((r, c), probabilities !! r !! c)
+                                  | (r, c) <- hiddenSquares ]
         -- Sort by probability and find the safest move
-        safestMove = listToMaybe $ sortOn snd probabilitiesForHidden
+        safestMove = listToMaybe $ L.sortOn snd probabilitiesForHidden
     in fmap fst safestMove
 
 -- Calculate the probability map for the grid
@@ -277,21 +277,31 @@ noRevealedNeighbors squares r c =
 -- Add a probability to a specific grid position
 addProbability :: [[Double]] -> (Int, Int) -> Double -> [[Double]]
 addProbability probMap (r, c) prob = 
-    let (beforeRow, row:afterRow) = splitAt r probMap
-        (beforeCol, val:afterCol) = splitAt c row
-    in beforeRow ++ [beforeCol ++ [val + prob] ++ afterCol] ++ afterRow
+    let (beforeRow, rowAfter) = splitAt r probMap
+    in case rowAfter of
+        [] -> probMap  -- If the row is empty, just return the original grid
+        (row:afterRow) ->
+            case splitAt c row of
+                (beforeCol, val:afterCol) -> 
+                    beforeRow ++ [beforeCol ++ [val + prob] ++ afterCol] ++ afterRow
+                _ -> probMap  -- If the column is out of range, return the original grid
 
 -- Update a specific grid position with a new probability
 updateProbability :: [[Double]] -> (Int, Int) -> Double -> [[Double]]
 updateProbability probMap (r, c) prob = 
-    let (beforeRow, row:afterRow) = splitAt r probMap
-        (beforeCol, _:afterCol) = splitAt c row
-    in beforeRow ++ [beforeCol ++ [prob] ++ afterCol] ++ afterRow
+    let (beforeRow, rowAfter) = splitAt r probMap
+    in case rowAfter of
+        [] -> probMap  -- If the row is empty, just return the original grid
+        (row:afterRow) ->
+            case splitAt c row of
+                (beforeCol, _:afterCol) -> 
+                    beforeRow ++ [beforeCol ++ [prob] ++ afterCol] ++ afterRow
+                _ -> probMap  -- If the column is out of range, return the original grid
 
 -- Average probabilities for squares with multiple contributions
 averageProbabilities :: [[Double]] -> [[Double]]
 averageProbabilities probMap = 
-    map (map (\x -> if x > 0 then x else 0)) probMap
+    map (map (\r -> if r > 0 then r else 0)) probMap
 
 -- Check if a Square is Clear and Hidden
 isClearAndHidden :: Square -> Bool
@@ -300,20 +310,20 @@ isClearAndHidden _ = False
 
 -- Get the neighbouring Squares of a given Square
 getNeighbours :: [[Square]] -> Int -> Int -> [Square]
-getNeighbours squares x y =
-    [ squares !! nx !! ny
-    | dx <- [-1..1], dy <- [-1..1], let nx = x + dx, let ny = y + dy
-    , nx >= 0, ny >= 0, nx < length squares, ny < length (head squares)
-    , (dx, dy) /= (0, 0) ]
+getNeighbours squares r c =
+    [ squares !! nr !! nc
+    | dr <- [-1..1], dc <- [-1..1], let nr = r + dr, let nc = c + dc
+    , nr >= 0, nc >= 0, nr < length squares, nc < length (head squares)
+    , (dr, dc) /= (0, 0) ]
 
 -- Get the neighbouring coordinates of a given position
 neighbourCoords :: Int -> Int -> Int -> [(Int, Int)]
-neighbourCoords x y size =
-    [ (nx, ny)
-    | dx <- [-1..1], dy <- [-1..1]
-    , let nx = x + dx, let ny = y + dy
-    , nx >= 0, ny >= 0, nx < size, ny < size
-    , (dx, dy) /= (0, 0) ]
+neighbourCoords r c size =
+    [ (nr, nc)
+    | dr <- [-1..1], dc <- [-1..1]
+    , let nr = r + dr, let nc = c + dc
+    , nr >= 0, nc >= 0, nr < size, nc < size
+    , (dr, dc) /= (0, 0) ]
 
 -- Get the number of neighbouring mines of a given Square
 countMines :: Square -> Int

@@ -102,7 +102,7 @@ createGrid = do
 -- Generate Random Mine Positions
 generateMines :: Int -> Int -> IO [(Int, Int)]
 generateMines size count = do
-    let indices = [(x, y) | x <- [0..size-1], y <- [0..size-1]]
+    let indices = [(r, c) | r <- [0..size-1], c <- [0..size-1]]
     selected <- shuffle indices
     return $ take count selected
 
@@ -117,11 +117,11 @@ shuffle xs = do
 -- Place the Mines into the Grid
 placeMines :: Int -> [(Int, Int)] -> [[Square]]
 placeMines size positions = 
-    [[ if (x, y) `elem` positions
+    [[ if (r, c) `elem` positions
         then Clear (Hidden Mine)
         else Clear (Hidden (Empty 0))
-     | y <- [0..size-1]] 
-     | x <- [0..size-1]]
+     | c <- [0..size-1]] 
+     | r <- [0..size-1]]
 
 -- Check if all Empty Squares have been Revealed
 checkWin :: [[Square]] -> Bool
@@ -159,47 +159,47 @@ revealBadFlags buttonsRef squaresRef = do
 -- Calculate the Value of each Square (i.e. number of neighbouring mines)
 calcNeighbours :: [[Square]] -> [[Square]]
 calcNeighbours grid = 
-    [[ if isMine (grid !! x !! y)
-        then grid !! x !! y
-        else let neighbours = countAdj grid x y
-             in updateSquare (grid !! x !! y) neighbours
-     | y <- [0..length grid - 1]]
-     | x <- [0..length grid - 1]]
+    [[ if isMine (grid !! r !! c)
+        then grid !! r !! c
+        else let neighbours = countAdj grid r c
+             in updateSquare (grid !! r !! c) neighbours
+     | c <- [0..length grid - 1]]
+     | r <- [0..length grid - 1]]
     where 
-        countAdj g x y = 
-            length [() | dx <- [-1..1], dy <- [-1..1],
-                         let nx = x + dx, 
-                         let ny = y + dy,
-                         nx >= 0, nx < length g,
-                         ny >= 0, ny < length (head g),
-                         isMine (g !! nx !! ny)]
+        countAdj g r c = 
+            length [() | dr <- [-1..1], dc <- [-1..1],
+                         let nr = r + dr, 
+                         let nc = c + dc,
+                         nr >= 0, nr < length g,
+                         nc >= 0, nc < length (head g),
+                         isMine (g !! nr !! nc)]
         updateSquare (Clear (Hidden (Empty _))) n = Clear (Hidden (Empty n))
         updateSquare square _                     = square
 
 -- Reveal Neighbours of a Revealed Empty Square
 revealNeighbours :: IORef [[Square]] -> Int -> Int -> UI ()
-revealNeighbours squaresRef x y = do
+revealNeighbours squaresRef r c = do
     squares <- liftIO $ readIORef squaresRef
-    forM_ [(-1)..1] $ \dx -> do
-        forM_ [(-1)..1] $ \dy -> do
-            let nx = x + dx
-            let ny = y + dy
+    forM_ [(-1)..1] $ \dr -> do
+        forM_ [(-1)..1] $ \dc -> do
+            let nr = r + dr
+            let nc = c + dc
             -- Ensure neighbour is in bounds
-            when (nx >= 0 && ny >= 0 && nx < length squares && ny < length (head squares)) $ do
-                let neighbour = squares !! nx !! ny
+            when (nr >= 0 && nc >= 0 && nr < length squares && nc < length (head squares)) $ do
+                let neighbour = squares !! nr !! nc
                 -- Reveal the square if not already revealed
                 unless (isRevealed neighbour) $ do
                     let newNeighbour = reveal neighbour
-                    liftIO $ updateSquareInGrid squaresRef nx ny newNeighbour
+                    liftIO $ updateSquareInGrid squaresRef nr nc newNeighbour
                     -- Recursively reveal neighbours if the neighbour is empty
-                    when (isEmpty newNeighbour) $ revealNeighbours squaresRef nx ny
+                    when (isEmpty newNeighbour) $ revealNeighbours squaresRef nr nc
 
 -- Helper function to update a square in the grid
 updateSquareInGrid :: IORef [[Square]] -> Int -> Int -> Square -> IO ()
-updateSquareInGrid squaresRef x y newSquare = do
+updateSquareInGrid squaresRef r c newSquare = do
     squares <- liftIO $ readIORef squaresRef
-    let updatedRow = take y (squares !! x) ++ [newSquare] ++ drop (y + 1) (squares !! x)
-    let updatedGrid = take x squares ++ [updatedRow] ++ drop (x + 1) squares
+    let updatedRow = take c (squares !! r) ++ [newSquare] ++ drop (c + 1) (squares !! r)
+    let updatedGrid = take r squares ++ [updatedRow] ++ drop (r + 1) squares
     liftIO $ writeIORef squaresRef updatedGrid
 
 -- Create a new Button with corresponding Square
