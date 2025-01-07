@@ -41,13 +41,17 @@ isEmpty :: Square -> Bool
 isEmpty (Clear (Revealed (Empty 0))) = True
 isEmpty _                            = False
 
+-- Get the number of neighbouring mines of a square
+getMines :: Square -> Int
+getMines (Flagged (Hidden (Empty n)))   = n
+getMines (Flagged (Revealed (Empty n))) = n
+getMines (Clear (Hidden (Empty n)))     = n
+getMines (Clear (Revealed (Empty n)))   = n
+getMines _                              = (-1)
+
 -- Check if a Square has N neighbouring Mines
 hasNMines :: Square -> Int -> Bool
-hasNMines (Flagged (Hidden (Empty x))) n   = (x == n)
-hasNMines (Flagged (Revealed (Empty x))) n = (x == n)
-hasNMines (Clear (Hidden (Empty x))) n     = (x == n)
-hasNMines (Clear (Revealed (Empty x))) n   = (x == n)
-hasNMines _ _                              = False
+hasNMines square n = (getMines square == n)
 
 -- Reveal a Square
 reveal :: Square -> Square

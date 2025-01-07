@@ -1,7 +1,5 @@
 module Player (module Player) where
 
-import System.IO.Unsafe (unsafePerformIO)
-
 import Control.Monad
 
 import Graphics.UI.Threepenny.Core hiding ((<|>), grid, style, row)
@@ -48,11 +46,22 @@ playMove squaresRef gameState = do
                                 -- Log the move
                                 liftIO $ putStrLn $ "Flagged square at (" ++ show x ++ ", " ++ show y ++ ")."
                             Nothing -> do
-                                -- Log that no move was found
-                                liftIO $ putStrLn "No safe moves available."
-                                return ()
+                                -- If all else fails attempt to find the least dangerous square to reveal
+                                case findLeastDangerousReveal squares of
+                                    Just (x, y) -> do
+                                        -- Reveal the returned square
+                                        let square = squares !! x !! y
+                                        let newSquare = reveal square
+                                        liftIO $ updateSquareInGrid squaresRef x y newSquare
+                                        when (isEmpty newSquare) $ revealNeighbours squaresRef x y
+                                        -- Log the move
+                                        liftIO $ putStrLn $ "Revealed square at (" ++ show x ++ ", " ++ show y ++ ")."
+                                    Nothing -> do
+                                        -- Log that no move was found
+                                        liftIO $ putStrLn "No safe moves available."
+                                        return ()
 
--- Attempt to find an unambiguously safe move
+-- Attempt to find an unambiguously safe square to reveal
 findSafeReveal :: [[Square]] -> Maybe (Int, Int)
 findSafeReveal squares = 
     let size = length squares
@@ -69,7 +78,7 @@ findSafeReveal squares =
                     , let (nx, ny) = head hiddenNeighbours ]
     in listToMaybe safeMoves
 
--- Attempt to find a mine that can be flagged
+-- Attempt to find a definite mine that can be flagged
 findFlagMove :: [[Square]] -> Maybe (Int, Int)
 findFlagMove squares = 
     let size = length squares
@@ -198,30 +207,91 @@ safeSquare squares size i j
     | i >= 0 && i < size && j >= 0 && j < size = isRevealed (squares !! i !! j)
     | otherwise = True
 
--- Attempt to find the least dangerous move available
-findLeastDangerousMove :: [[Square]] -> Maybe (Int, Int)
-findLeastDangerousMove squares =
-    let size = length squares
-        coords = [(x, y) | x <- [0..size-1], y <- [0..size-1]]
+-- Attempt to find the least dangerous reveal available
+findLeastDangerousReveal :: [[Square]] -> Maybe (Int, Int)
+findLeastDangerousReveal squares =
+    let probabilities = calculateProbabilities squares
+        size = length probabilities
+        coords = [(x, y) | x <- [0..size-1], y <- [0..length (head probabilities) - 1]]
         hiddenSquares = [ (x, y)
                         | (x, y) <- coords
                         , let square = squares !! x !! y
                         , not (isRevealed square)
                         , not (isFlagged square) ]
-        -- Simplistic probability calculation: neighbours with mines / total neighbors
-        probabilities = [ ((x, y), calculateProbability squares x y)
-                        | (x, y) <- hiddenSquares ]
-        safestMove = listToMaybe $ sortOn snd probabilities
+        -- Extract probabilities for hidden squares only
+        probabilitiesForHidden = [ ((x, y), probabilities !! x !! y)
+                                  | (x, y) <- hiddenSquares ]
+        -- Sort by probability and find the safest move
+        safestMove = listToMaybe $ sortOn snd probabilitiesForHidden
     in fmap fst safestMove
 
--- Calculate a Square's probability (mines / total neighbours)
-calculateProbability :: [[Square]] -> Int -> Int -> Double
-calculateProbability squares x y =
-    let neighbours = getNeighbours squares x y
-        revealedNeighbours = filter isRevealed neighbours
-        totalMines = sum [ countMines sq | sq <- revealedNeighbours ]
-        totalHidden = length $ filter (not . isRevealed) neighbours
-    in if totalHidden == 0 then 1.0 else fromIntegral totalMines / fromIntegral totalHidden
+-- Calculate the probability map for the grid
+calculateProbabilities :: [[Square]] -> [[Double]]
+calculateProbabilities squares = 
+    let size = length squares
+        coords = [(r, c) | r <- [0..size-1], c <- [0..length (head squares) - 1]]
+        neighborProbs = concatMap (analyzeSquare squares) coords
+        rawProbabilities = aggregateProbabilities size neighborProbs
+    in assignDefaultProbabilities squares rawProbabilities
+
+-- Analyze a single square for its contribution to hidden neighbors
+analyzeSquare :: [[Square]] -> (Int, Int) -> [((Int, Int), Double)]
+analyzeSquare squares (r, c) = 
+    let square = squares !! r !! c
+        size = length squares
+        neighbors = neighbourCoords r c size
+        revealedNeighbors = [sq | (nr, nc) <- neighbors, let sq = squares !! nr !! nc, isRevealed sq]
+        hiddenNeighbors = [(nr, nc) | (nr, nc) <- neighbors, isHidden (squares !! nr !! nc)]
+    in if isRevealed square && not (isMine square) && not (null revealedNeighbors) && not (null hiddenNeighbors)
+       then
+            let n = getMines square
+                prob = fromIntegral n / fromIntegral (length hiddenNeighbors)
+            in [ (pos, prob) | pos <- hiddenNeighbors ]
+       else []
+
+-- Aggregate probabilities for each square
+aggregateProbabilities :: Int -> [((Int, Int), Double)] -> [[Double]]
+aggregateProbabilities size neighborProbs = 
+    let initialMap = replicate size (replicate size 0.0)
+        groupedProbs = foldl (\acc (pos, prob) -> addProbability acc pos prob) initialMap neighborProbs
+    in averageProbabilities groupedProbs
+
+-- Assign a default probability of 1 to squares with no revealed neighbors
+assignDefaultProbabilities :: [[Square]] -> [[Double]] -> [[Double]]
+assignDefaultProbabilities squares probMap = 
+    let size = length squares
+        coords = [(r, c) | r <- [0..size-1], c <- [0..length (head squares) - 1]]
+        updatedMap = foldl (\acc (r, c) -> 
+                    if noRevealedNeighbors squares r c
+                    then updateProbability acc (r, c) 1.0
+                    else acc) probMap coords
+    in updatedMap
+
+-- Check if a square has no revealed neighbors
+noRevealedNeighbors :: [[Square]] -> Int -> Int -> Bool
+noRevealedNeighbors squares r c = 
+    let size = length squares
+        neighbors = neighbourCoords r c size
+    in null [sq | (nr, nc) <- neighbors, let sq = squares !! nr !! nc, isRevealed sq]
+
+-- Add a probability to a specific grid position
+addProbability :: [[Double]] -> (Int, Int) -> Double -> [[Double]]
+addProbability probMap (r, c) prob = 
+    let (beforeRow, row:afterRow) = splitAt r probMap
+        (beforeCol, val:afterCol) = splitAt c row
+    in beforeRow ++ [beforeCol ++ [val + prob] ++ afterCol] ++ afterRow
+
+-- Update a specific grid position with a new probability
+updateProbability :: [[Double]] -> (Int, Int) -> Double -> [[Double]]
+updateProbability probMap (r, c) prob = 
+    let (beforeRow, row:afterRow) = splitAt r probMap
+        (beforeCol, _:afterCol) = splitAt c row
+    in beforeRow ++ [beforeCol ++ [prob] ++ afterCol] ++ afterRow
+
+-- Average probabilities for squares with multiple contributions
+averageProbabilities :: [[Double]] -> [[Double]]
+averageProbabilities probMap = 
+    map (map (\x -> if x > 0 then x else 0)) probMap
 
 -- Check if a Square is Clear and Hidden
 isClearAndHidden :: Square -> Bool
