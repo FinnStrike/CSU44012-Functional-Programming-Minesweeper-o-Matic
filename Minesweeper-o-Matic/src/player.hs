@@ -22,7 +22,7 @@ playMove squaresRef gameState = do
                 -- Reveal the safe square
                 let square = squares !! r !! c
                 let newSquare = reveal square
-                liftIO $ updateSquareInGrid squaresRef r c newSquare
+                liftIO $ updateSquare squaresRef r c newSquare
                 when (isEmpty newSquare) $ revealNeighbours squaresRef r c
                 -- Log the move
                 liftIO $ putStrLn $ "Revealed square at (" ++ show r ++ ", " ++ show c ++ ")."
@@ -33,7 +33,7 @@ playMove squaresRef gameState = do
                         -- Flag the mine
                         let square = squares !! r !! c
                         let newSquare = flag square
-                        liftIO $ updateSquareInGrid squaresRef r c newSquare
+                        liftIO $ updateSquare squaresRef r c newSquare
                         -- Log the move
                         liftIO $ putStrLn $ "Flagged square at (" ++ show r ++ ", " ++ show c ++ ")."
                     Nothing -> do
@@ -43,7 +43,7 @@ playMove squaresRef gameState = do
                                 -- Flag the mine
                                 let square = squares !! r !! c
                                 let newSquare = flag square
-                                liftIO $ updateSquareInGrid squaresRef r c newSquare
+                                liftIO $ updateSquare squaresRef r c newSquare
                                 -- Log the move
                                 liftIO $ putStrLn $ "Flagged square at (" ++ show r ++ ", " ++ show c ++ ")."
                             Nothing -> do
@@ -53,7 +53,7 @@ playMove squaresRef gameState = do
                                         -- Reveal the returned square and pray it's safe
                                         let square = squares !! r !! c
                                         let newSquare = reveal square
-                                        liftIO $ updateSquareInGrid squaresRef r c newSquare
+                                        liftIO $ updateSquare squaresRef r c newSquare
                                         when (isEmpty newSquare) $ revealNeighbours squaresRef r c
                                         -- Log the move
                                         liftIO $ putStrLn $ "Revealed square at (" ++ show r ++ ", " ++ show c ++ ")."
