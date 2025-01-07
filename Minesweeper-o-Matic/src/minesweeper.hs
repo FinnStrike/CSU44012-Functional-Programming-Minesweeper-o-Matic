@@ -59,7 +59,7 @@ reveal (Clear (Hidden cell)) = Clear (Revealed cell)
 reveal square                = square
 
 -- Reveal a Square (including flagged ones)
--- ONLY CALL THIS WHEN REVEALING MINES IN GAME OVER STATE
+-- SHOULD ONLY BE CALLED WHEN REVEALING MINES IN GAME OVER STATE
 forceReveal :: Square -> Square
 forceReveal (Flagged (Hidden cell)) = Clear (Revealed cell)
 forceReveal (Clear (Hidden cell))   = Clear (Revealed cell)
@@ -99,7 +99,7 @@ createGrid = do
     let initialGrid = placeMines size positions
     return $ calcNeighbours initialGrid
 
--- Generate Random Mine Positions
+-- Generate Random Mine Positions for the grid
 generateMines :: Int -> Int -> IO [(Int, Int)]
 generateMines size count = do
     let indices = [(r, c) | r <- [0..size-1], c <- [0..size-1]]
@@ -123,7 +123,7 @@ placeMines size positions =
      | c <- [0..size-1]] 
      | r <- [0..size-1]]
 
--- Check if all Empty Squares have been Revealed
+-- Check if all Empty Squares have been Revealed (Minesweeper Win Condition)
 checkWin :: [[Square]] -> Bool
 checkWin squares =
     let totalSquares = length squares * length (head squares)
@@ -131,7 +131,8 @@ checkWin squares =
         revealedCount = length [() | row <- squares, Clear (Revealed _) <- row]
     in revealedCount == totalSquares - mineCount
 
--- Reveal all mines in the grid
+-- Reveal all the mines in the grid
+-- SHOULD ONLY BE CALLED WHEN THE PLAYER GETS A GAME OVER
 revealMines :: IORef [[Element]] -> IORef [[Square]] -> UI ()
 revealMines buttonsRef squaresRef = do
     buttons <- liftIO $ readIORef buttonsRef
@@ -145,6 +146,8 @@ revealMines buttonsRef squaresRef = do
                 liftIO $ updateSquareInGrid squaresRef i j newSquare
                 updateButton button newSquare
 
+-- Change the visual style of any misplaced flags
+-- SHOULD ONLY BE CALLED WHEN THE PLAYER GETS A GAME OVER
 revealBadFlags :: IORef [[Element]] -> IORef [[Square]] -> UI ()
 revealBadFlags buttonsRef squaresRef = do
     buttons <- liftIO $ readIORef buttonsRef
@@ -156,7 +159,7 @@ revealBadFlags buttonsRef squaresRef = do
             when (isFlagged square && not (isMine square)) $ do
                 void $ element button # set UI.style badFlagStyle
 
--- Calculate the Value of each Square (i.e. number of neighbouring mines)
+-- Calculate the clue of each Square (i.e. number of neighbouring mines)
 calcNeighbours :: [[Square]] -> [[Square]]
 calcNeighbours grid = 
     [[ if isMine (grid !! r !! c)
@@ -166,6 +169,7 @@ calcNeighbours grid =
      | c <- [0..length grid - 1]]
      | r <- [0..length grid - 1]]
     where 
+        -- Count the adjacent mines of every square
         countAdj g r c = 
             length [() | dr <- [-1..1], dc <- [-1..1],
                          let nr = r + dr, 
@@ -177,6 +181,8 @@ calcNeighbours grid =
         updateSquare square _                     = square
 
 -- Reveal Neighbours of a Revealed Empty Square
+--   When an empty square is revealed, all of its neighbours
+--   can be revealed automatically
 revealNeighbours :: IORef [[Square]] -> Int -> Int -> UI ()
 revealNeighbours squaresRef r c = do
     squares <- liftIO $ readIORef squaresRef
@@ -194,7 +200,7 @@ revealNeighbours squaresRef r c = do
                     -- Recursively reveal neighbours if the neighbour is empty
                     when (isEmpty newNeighbour) $ revealNeighbours squaresRef nr nc
 
--- Helper function to update a square in the grid
+-- Update a square in the grid with a new status
 updateSquareInGrid :: IORef [[Square]] -> Int -> Int -> Square -> IO ()
 updateSquareInGrid squaresRef r c newSquare = do
     squares <- liftIO $ readIORef squaresRef
@@ -237,7 +243,7 @@ mkButton squaresRef gameState i j = do
     view <- UI.div #+ [element button]
     return (button, view)
 
--- Update the Button Appearance depending on State
+-- Update the Button Appearance depending on Square State
 updateButton :: Element -> Square -> UI ()
 updateButton button square = do
     let (icon, style) = case square of
@@ -270,7 +276,7 @@ mkButtons w squaresRef gameState message = do
         -- Create 10 Rows
         rowButtons <- forM [0..9] $ \j -> do
             (b, v) <- mkButton squaresRef gameState i j
-            -- Update the buttonsRef with the new button
+            -- Update the buttonsRef with each new button
             liftIO $ modifyIORef buttonsRef (\g ->
                 if length g > i
                     then take i g ++ [(g !! i) ++ [b]] ++ drop (i + 1) g
@@ -279,10 +285,13 @@ mkButtons w squaresRef gameState message = do
         UI.div # set UI.style rowStyle #+ rowButtons
     grid <- UI.div # set UI.style gridStyle
         #+ map element rows
+    -- Start a loop in a separate thread to keep the grid appearance
+    -- updated and to check for win/loss conditions
     void $ liftIO $ forkIO $ runUI w $ loop buttonsRef squaresRef gameState message 
     return [grid]
 
 -- Loop to keep grid appearance updated
+-- Refreshes the entire grid every 0.1 seconds while the game is active
 loop :: IORef [[Element]] -> IORef [[Square]] -> IORef Bool -> Element -> UI ()
 loop buttonsRef squaresRef gameState message = do
     active <- liftIO $ readIORef gameState
@@ -291,7 +300,7 @@ loop buttonsRef squaresRef gameState message = do
         liftIO $ threadDelay 100000
         loop buttonsRef squaresRef gameState message
 
--- Update the grid and check win/lose conditions
+-- Update the grid appearance (buttons) and check win/lose conditions
 updateGrid :: IORef [[Element]] -> IORef [[Square]] -> IORef Bool -> Element -> UI ()
 updateGrid buttonsRef squaresRef gameState message = do 
     buttons <- liftIO $ readIORef buttonsRef
@@ -301,6 +310,7 @@ updateGrid buttonsRef squaresRef gameState message = do
         forM_ [0..9] $ \j -> do
             let button = buttons !! i !! j
             let square = squares !! i !! j
+            -- Ensure buttons reflect corresponding Square State
             updateButton button square
             -- If Square is a Revealed Mine set End Game Flag
             when (isMine square && isRevealed square) $ do
