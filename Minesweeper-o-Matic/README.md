@@ -4,6 +4,8 @@
 
 Minesweeper-o-Matic is an implementation of the classic [Minesweeper](https://freeminesweeper.org/) game written in Haskell using Threepenny UI. As well as allowing you to play Minesweeper, it also allows you to play moves automatically. 
 
+![Minesweeper-o-Matic](Screenshot.png)
+
 ## How to Play
 This version of Minesweeper consists of a 10x10 grid containing 15 randomly distributed mines. 
 
