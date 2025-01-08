@@ -324,7 +324,8 @@ updateGrid buttonsRef squaresRef gameState message = do
         revealBadFlags buttonsRef squaresRef
         liftIO $ writeIORef gameState False
     -- If all Empty Squares Revealed then End the Game
-    when (checkWin squares) $ do
+    gameActive <- liftIO $ readIORef gameState
+    when ((checkWin squares) && gameActive) $ do
         void $ element message # set UI.style (messageStyle ++ [("color", "yellow")])
         void $ element message # set UI.text "Congratulations!"
         liftIO $ writeIORef gameState False
